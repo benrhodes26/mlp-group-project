@@ -1,3 +1,9 @@
+# This script is a re-implementation of some of the pre-processing used
+# here: https://github.com/siyuanzhao/2016-EDM/. The raw csv data used here
+# can be downloaded from that repo.
+# The output of this script is fed into the data_providers class, which
+# does some further processing to construct mini-batches for training an RNN
+
 import csv
 import numpy as np
 import os
