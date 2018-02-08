@@ -138,7 +138,7 @@ class DataProvider(object):
 class ASSISTDataProvider(DataProvider):
     """Data provider for ASSISTments 2009/2015 student assessment data set."""
 
-    def __init__(self, which_set='train', which_year='09', data_dir=None, batch_size=100,
+    def __init__(self, data_dir, which_set='train', which_year='09', batch_size=100,
                  max_num_batches=-1, shuffle_order=True, rng=None, data=None):
         """Create a new ASSISTments data provider object.
 
@@ -157,7 +157,8 @@ class ASSISTDataProvider(DataProvider):
             data: (inputs, target): if not None, use this data instead of
                 loading from file
         """
-        data_path = os.path.join(data_dir, 'assist{0}-{1}'.format(which_year, which_set))
+        expanded_data_dir = os.path.expanduser(data_dir)
+        data_path = os.path.join(expanded_data_dir, 'assist{0}-{1}'.format(which_year, which_set))
         self._validate_inputs(which_set, which_year, data_path)
         self.which_set = which_set
         self.which_year = which_year
@@ -257,12 +258,12 @@ class ASSISTDataProvider(DataProvider):
             val_data = {'inputs': inputs_val, 'targets': targets_val, 'target_ids': targets_ids_val,
                         'max_num_ans': self.max_num_ans, 'max_prob_set_id': self.max_prob_set_id}
 
-            train_dp = ASSISTDataProvider(self.which_set, self.which_year,
-                              self.data_dir, self.batch_size, self.max_num_batches,
-                              self.shuffle_order, self.rng, data=train_data)
-            val_dp = ASSISTDataProvider(self.which_set, self.which_year,
-                              self.data_dir, self.batch_size, self.max_num_batches,
-                              self.shuffle_order, self.rng, data=val_data)
+            train_dp = ASSISTDataProvider(self.data_dir, self.which_set, self.which_year,
+                                          self.batch_size, self.max_num_batches,
+                                          self.shuffle_order, self.rng, data=train_data)
+            val_dp = ASSISTDataProvider(self.data_dir, self.which_set, self.which_year,
+                                        self.batch_size, self.max_num_batches,
+                                        self.shuffle_order, self.rng, data=val_data)
             yield (train_dp, val_dp)
 
     def _validate_inputs(self, which_set, which_year, data_path):
