@@ -17,6 +17,7 @@ class LstmModel:
                     learning_rate=0.01, clip_norm=20.0, decay_exp=None):
         self._build_model(n_hidden_layers, n_hidden_units, keep_prob)
         self._build_training(learning_rate, clip_norm, decay_exp)
+        self._build_metrics()
 
     def _build_model(self, n_hidden_layers=1, n_hidden_units=200,
                      keep_prob=1.0):
@@ -45,9 +46,8 @@ class LstmModel:
         # data. 'None' means any length batch size accepted
         self.inputs = tf.placeholder(
             tf.float32,
-            shape=[self.max_time_steps, None, self.feature_len],
+            shape=[None, self.max_time_steps, self.feature_len],
             name='inputs')
-        self.inputs = tf.transpose(self.inputs, [1, 0, 2])
 
         # 'None' because may have answered any number of questions
         self.targets = tf.placeholder(tf.float32,
@@ -87,6 +87,7 @@ class LstmModel:
         logits = tf.matmul(self.outputs, sigmoid_w) + sigmoid_b
         logits = tf.reshape(logits, [-1])
         self.logits = tf.gather(logits, self.target_ids)
+        self.predictions = tf.nn.sigmoid(self.logits)
 
     def _build_training(self, learning_rate=0.001, decay_exp=None,
                         clip_norm=20.0):
@@ -120,3 +121,9 @@ class LstmModel:
 
         self.training = optimizer.apply_gradients(zip(grads, trainable_vars),
                                                   global_step=self.global_step)
+
+    def _build_metrics(self):
+        self.accuracy = tf.metrics.accuracy(labels=self.targets,
+                                            predictions=self.predictions)
+        self.auc = tf.metrics.auc(labels=self.targets,
+                                  predictions=self.predictions)
