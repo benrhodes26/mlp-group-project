@@ -1,21 +1,34 @@
 from data_provider import ASSISTDataProvider
 from LstmModel import LstmModel
 
+from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
+from time import gmtime, strftime
+
 import numpy as np
 import tensorflow as tf
 
 
 DATA_DIR = '~/Dropbox/mlp-group-project/'
-BATCH_SIZE = 100
-EPOCHS = 50
+START_TIME = strftime('%Y%m%d-%H%M', gmtime())
 
-experiment_name = 'first'
+parser = ArgumentParser(description='Train LstmModel.',
+                        formatter_class=ArgumentDefaultsHelpFormatter)
+parser.add_argument('--learn_rate',  type=float, default=0.1,
+                    help='Initial learning rate for Adam optimiser')
+parser.add_argument('--batch',  type=int, default=100,
+                    help='Batch size')
+parser.add_argument('--epochs', type=int, default=20,
+                    help='Number of training epochs')
+parser.add_argument('--name', type=str, default=START_TIME,
+                    help='Name of experiment when saving model')
+args = parser.parse_args()
 
 Model = LstmModel()
-TrainingSet = ASSISTDataProvider(DATA_DIR, batch_size=BATCH_SIZE)
+TrainingSet = ASSISTDataProvider(DATA_DIR, batch_size=args.batch)
 
+print('Experiment started at', START_TIME)
 print("Building model...")
-Model.build_graph(n_hidden_units=200, learning_rate=0.1)
+Model.build_graph(n_hidden_units=200, learning_rate=args.learn_rate)
 print("Model built!")
 
 print("Starting training...")
@@ -24,7 +37,7 @@ with tf.Session() as sess:
     sess.run(tf.global_variables_initializer())
     losses = []
 
-    for epoch in range(EPOCHS):
+    for epoch in range(args.epochs):
         for inputs, targets, target_ids in TrainingSet:
             # ensure shapes and types as model expects
             inputs = np.squeeze(np.array(inputs, dtype=np.float32))
@@ -44,6 +57,6 @@ with tf.Session() as sess:
 
         # save model each epoch
         save_path = "./{}_{}.ckpt".format(
-            experiment_name, epoch)
+            args.name, epoch)
         train_saver.save(sess, save_path)
     print("Saved model at", save_path)
