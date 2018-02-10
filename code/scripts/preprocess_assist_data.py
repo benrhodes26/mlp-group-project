@@ -101,7 +101,7 @@ for i in range(num_students):
 
     # calculate target_ids that we need after learning to extract a predictions
     # vector for each student that corresponds to the targets vector
-    target_ids.append(list(max_prob_set_id*np.arange(num_problems) + problems[1:]))
+    target_ids.append(list(max_prob_set_id*np.arange(num_problems) + problems[1:] - 1))
 
 sparse_inputs = sp.csr_matrix((np.ones(len(row_coordinates)), (row_coordinates, column_coordinates)),
                               shape=(num_students, max_num_ans*encoding_dim))
