@@ -15,6 +15,8 @@ parser = ArgumentParser(description='Train LstmModel.',
 parser.add_argument('--data_dir', type=str,
                     default='~/Dropbox/mlp-group-project/',
                     help='Path to directory containing data')
+parser.add_argument('--restore', default=None,
+                    help='Path to .ckpt file of model to continue training')
 parser.add_argument('--learn_rate',  type=float, default=0.01,
                     help='Initial learning rate for Adam optimiser')
 parser.add_argument('--batch',  type=int, default=100,
@@ -39,12 +41,15 @@ Model.build_graph(n_hidden_units=200, learning_rate=args.learn_rate,
 print("Model built!")
 
 train_saver = tf.train.Saver()
-print("Starting training...")
 with tf.Session() as sess:
     sess.run(tf.global_variables_initializer())
     sess.run(tf.local_variables_initializer())  # required for metrics
-    losses = []
 
+    if args.restore:
+        train_saver.restore(sess, args.restore)
+        print("Model restored!")
+
+    print("Starting training...")
     for epoch in range(args.epochs):
         for i, (inputs, targets, target_ids) in enumerate(TrainingSet):
             # ensure shapes and types as model expects
