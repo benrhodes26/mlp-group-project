@@ -38,9 +38,9 @@ Model.build_graph(n_hidden_units=200, learning_rate=args.learn_rate,
                   decay_exp=args.decay)
 print("Model built!")
 
+train_saver = tf.train.Saver()
 print("Starting training...")
 with tf.Session() as sess:
-    train_saver = tf.train.Saver()
     sess.run(tf.global_variables_initializer())
     sess.run(tf.local_variables_initializer())  # required for metrics
     losses = []
@@ -54,18 +54,16 @@ with tf.Session() as sess:
             target_ids = np.array(target_ids, dtype=np.int32)
 
             # Train!
-            _, loss, acc, auc = sess.run(
+            _, loss, (accuracy, _), (auc, _) = sess.run(
                 [Model.training, Model.loss, Model.accuracy, Model.auc],
                 feed_dict={Model.inputs: inputs,
                            Model.targets: targets,
                            Model.target_ids: target_ids})
-            print("Training underway... Batch: {}, loss: {}".format(i, loss))
-            print("Accuracy: {}, AUC: {}".format(acc, auc))
 
-        print("Epoch: {}, loss: {}".format(epoch, loss))
+        print("Epoch: {},  Loss: {:.3f},  Accuracy: {:.3f},  AUC: {:.3f}"
+              .format(epoch, loss, accuracy, auc))
 
         # save model each epoch
-        save_path = "{}/{}_{}.ckpt".format(
-            args.model_dir, args.name, epoch)
+        save_path = "{}/{}_{}.ckpt".format(args.model_dir, args.name, epoch)
         train_saver.save(sess, save_path)
     print("Saved model at", save_path)
