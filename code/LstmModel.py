@@ -14,9 +14,9 @@ class LstmModel:
         self.n_distinct_questions = n_distinct_questions
 
     def build_graph(self, n_hidden_layers=1, n_hidden_units=200, keep_prob=1.0,
-                    learning_rate=0.01, clip_norm=20.0):
+                    learning_rate=0.01, clip_norm=20.0, decay_exp=None):
         self._build_model(n_hidden_layers, n_hidden_units, keep_prob)
-        self._build_training(learning_rate, clip_norm)
+        self._build_training(learning_rate, clip_norm, decay_exp)
 
     def _build_model(self, n_hidden_layers=1, n_hidden_units=200,
                      keep_prob=1.0):
@@ -87,9 +87,8 @@ class LstmModel:
         logits = tf.matmul(self.outputs, sigmoid_w) + sigmoid_b
         logits = tf.reshape(logits, [-1])
         self.logits = tf.gather(logits, self.target_ids)
-        self.predictions = tf.sigmoid(self.logits)
 
-    def _build_training(self, learning_rate=0.001, decay_exp=0.98,
+    def _build_training(self, learning_rate=0.001, decay_exp=None,
                         clip_norm=20.0):
         """Define parameters updates, with optional
 
@@ -101,7 +100,7 @@ class LstmModel:
         https://www.tensorflow.org/versions/r0.12/api_docs/python/train
         /gradient_clipping
         """
-        loss_per_example = tf.nn.softmax_cross_entropy_with_logits_v2(
+        loss_per_example = tf.nn.sigmoid_cross_entropy_with_logits(
             logits=self.logits, labels=self.targets)
         self.loss = tf.reduce_mean(loss_per_example)
 
@@ -116,7 +115,8 @@ class LstmModel:
         optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
         grads, trainable_vars = zip(*optimizer.compute_gradients(self.loss))
         if clip_norm:
-            grads, _ = tf.clip_by_global_norm(grads, clip_norm)
+            # grads, _ = tf.clip_by_global_norm(grads, clip_norm)
+            grads, _ = [tf.clip_by_norm(grads, clip_norm) for grad in grads]
 
         self.training = optimizer.apply_gradients(zip(grads, trainable_vars),
                                                   global_step=self.global_step)
