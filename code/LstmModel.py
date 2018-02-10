@@ -115,7 +115,8 @@ class LstmModel:
         optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
         grads, trainable_vars = zip(*optimizer.compute_gradients(self.loss))
         if clip_norm:
-            grads, _ = tf.clip_by_global_norm(grads, clip_norm)
+            # grads, _ = tf.clip_by_global_norm(grads, clip_norm)
+            grads, _ = [tf.clip_by_norm(grads, clip_norm) for grad in grads]
 
         self.training = optimizer.apply_gradients(zip(grads, trainable_vars),
                                                   global_step=self.global_step)
