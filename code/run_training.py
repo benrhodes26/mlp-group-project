@@ -42,6 +42,7 @@ print("Starting training...")
 with tf.Session() as sess:
     train_saver = tf.train.Saver()
     sess.run(tf.global_variables_initializer())
+    sess.run(tf.local_variables_initializer())  # required for metrics
     losses = []
 
     for epoch in range(args.epochs):
@@ -53,12 +54,13 @@ with tf.Session() as sess:
             target_ids = np.array(target_ids, dtype=np.int32)
 
             # Train!
-            _, loss = sess.run(
-                [Model.training, Model.loss],
+            _, loss, acc, auc = sess.run(
+                [Model.training, Model.loss, Model.accuracy, Model.auc],
                 feed_dict={Model.inputs: inputs,
                            Model.targets: targets,
                            Model.target_ids: target_ids})
             print("Training underway... Batch: {}, loss: {}".format(i, loss))
+            print("Accuracy: {}, AUC: {}".format(acc, auc))
 
         print("Epoch: {}, loss: {}".format(epoch, loss))
 
