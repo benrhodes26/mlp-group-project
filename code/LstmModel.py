@@ -15,8 +15,9 @@ class LstmModel:
 
     def build_graph(self, n_hidden_layers=1, n_hidden_units=200, keep_prob=1.0,
                     learning_rate=0.01, clip_norm=20.0, decay_exp=None):
-        self._build_model(n_hidden_layers, n_hidden_units, keep_prob)
-        self._build_training(learning_rate, clip_norm, decay_exp)
+        self._build_model(n_hidden_layers=n_hidden_layers, n_hidden_units=n_hidden_units,
+                          keep_prob=keep_prob)
+        self._build_training(learning_rate=learning_rate, decay_exp=decay_exp, clip_norm=clip_norm)
 
     def _build_model(self, n_hidden_layers=1, n_hidden_units=200,
                      keep_prob=1.0):
@@ -96,7 +97,7 @@ class LstmModel:
         https://www.tensorflow.org/versions/r0.12/api_docs/python/train
         /decaying_the_learning_rate
 
-        Applies gradient clipping by gloabl norm (optional). See:
+        Applies gradient clipping by global norm (optional). See:
         https://www.tensorflow.org/versions/r0.12/api_docs/python/train
         /gradient_clipping
         """
@@ -116,7 +117,7 @@ class LstmModel:
         grads, trainable_vars = zip(*optimizer.compute_gradients(self.loss))
         if clip_norm:
             # grads, _ = tf.clip_by_global_norm(grads, clip_norm)
-            grads, _ = [tf.clip_by_norm(grads, clip_norm) for grad in grads]
+            grads, _ = [tf.clip_by_norm(grad, clip_norm) for grad in grads]
 
         self.training = optimizer.apply_gradients(zip(grads, trainable_vars),
                                                   global_step=self.global_step)
