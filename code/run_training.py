@@ -21,7 +21,7 @@ parser.add_argument('--batch',  type=int, default=100,
                     help='Batch size')
 parser.add_argument('--epochs', type=int, default=20,
                     help='Number of training epochs')
-parser.add_argument('--decay', default=None,
+parser.add_argument('--decay', default=0.9,
                     help='Fraction to decay learning rate every 100 batches')
 parser.add_argument('--name', type=str, default=START_TIME,
                     help='Name of experiment when saving model')
