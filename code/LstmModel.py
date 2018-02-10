@@ -14,9 +14,9 @@ class LstmModel:
         self.n_distinct_questions = n_distinct_questions
 
     def build_graph(self, n_hidden_layers=1, n_hidden_units=200, keep_prob=1.0,
-                    learning_rate=0.01, clip_norm=20.0):
+                    learning_rate=0.01, clip_norm=20.0, decay_exp=None):
         self._build_model(n_hidden_layers, n_hidden_units, keep_prob)
-        self._build_training(learning_rate, clip_norm)
+        self._build_training(learning_rate, clip_norm, decay_exp)
 
     def _build_model(self, n_hidden_layers=1, n_hidden_units=200,
                      keep_prob=1.0):
@@ -88,7 +88,7 @@ class LstmModel:
         logits = tf.reshape(logits, [-1])
         self.logits = tf.gather(logits, self.target_ids)
 
-    def _build_training(self, learning_rate=0.001, decay_exp=0.98,
+    def _build_training(self, learning_rate=0.001, decay_exp=None,
                         clip_norm=20.0):
         """Define parameters updates, with optional
 

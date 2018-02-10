@@ -21,6 +21,8 @@ parser.add_argument('--batch',  type=int, default=100,
                     help='Batch size')
 parser.add_argument('--epochs', type=int, default=20,
                     help='Number of training epochs')
+parser.add_argument('--decay', default=None,
+                    help='Fraction to decay learning rate every 100 batches')
 parser.add_argument('--name', type=str, default=START_TIME,
                     help='Name of experiment when saving model')
 parser.add_argument('--model_dir', type=str, default='.',
@@ -32,7 +34,8 @@ TrainingSet = ASSISTDataProvider(args.data_dir, batch_size=args.batch)
 
 print('Experiment started at', START_TIME)
 print("Building model...")
-Model.build_graph(n_hidden_units=200, learning_rate=args.learn_rate)
+Model.build_graph(n_hidden_units=200, learning_rate=args.learn_rate,
+                  decay_exp=args.decay)
 print("Model built!")
 
 print("Starting training...")
