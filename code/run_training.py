@@ -13,7 +13,7 @@ START_TIME = strftime('%Y%m%d-%H%M', gmtime())
 
 parser = ArgumentParser(description='Train LstmModel.',
                         formatter_class=ArgumentDefaultsHelpFormatter)
-parser.add_argument('--learn_rate',  type=float, default=0.1,
+parser.add_argument('--learn_rate',  type=float, default=0.01,
                     help='Initial learning rate for Adam optimiser')
 parser.add_argument('--batch',  type=int, default=100,
                     help='Batch size')
@@ -38,7 +38,7 @@ with tf.Session() as sess:
     losses = []
 
     for epoch in range(args.epochs):
-        for inputs, targets, target_ids in TrainingSet:
+        for i, (inputs, targets, target_ids) in enumerate(TrainingSet):
             # ensure shapes and types as model expects
             inputs = np.squeeze(np.array(inputs, dtype=np.float32))
             inputs = np.transpose(inputs, [1, 0, 2])
@@ -51,7 +51,7 @@ with tf.Session() as sess:
                 feed_dict={Model.inputs: inputs,
                            Model.targets: targets,
                            Model.target_ids: target_ids})
-            print("Training underway...")
+            print("Training underway... Batch: {}, loss: {}".format(i, loss))
 
         print("Epoch: {}, loss: {}".format(epoch, loss))
 
