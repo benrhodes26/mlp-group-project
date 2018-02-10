@@ -15,9 +15,10 @@ class LstmModel:
 
     def build_graph(self, n_hidden_layers=1, n_hidden_units=200, keep_prob=1.0,
                     learning_rate=0.01, clip_norm=20.0, decay_exp=None):
-        self._build_model(n_hidden_layers=n_hidden_layers, n_hidden_units=n_hidden_units,
-                          keep_prob=keep_prob)
-        self._build_training(learning_rate=learning_rate, decay_exp=decay_exp, clip_norm=clip_norm)
+        self._build_model(n_hidden_layers=n_hidden_layers,
+                          n_hidden_units=n_hidden_units, keep_prob=keep_prob)
+        self._build_training(learning_rate=learning_rate, decay_exp=decay_exp,
+                             clip_norm=clip_norm)
         self._build_metrics()
 
     def _build_model(self, n_hidden_layers=1, n_hidden_units=200,
@@ -88,7 +89,7 @@ class LstmModel:
         logits = tf.matmul(self.outputs, sigmoid_w) + sigmoid_b
         logits = tf.reshape(logits, [-1])
         self.logits = tf.gather(logits, self.target_ids)
-        self.predictions = tf.nn.sigmoid(self.logits)
+        self.predictions = tf.round(tf.nn.sigmoid(self.logits))
 
     def _build_training(self, learning_rate=0.001, decay_exp=None,
                         clip_norm=20.0):
@@ -124,6 +125,7 @@ class LstmModel:
                                                   global_step=self.global_step)
 
     def _build_metrics(self):
+
         self.accuracy = tf.metrics.accuracy(labels=self.targets,
                                             predictions=self.predictions)
         self.auc = tf.metrics.auc(labels=self.targets,
