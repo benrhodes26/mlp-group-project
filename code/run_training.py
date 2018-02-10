@@ -8,11 +8,13 @@ import numpy as np
 import tensorflow as tf
 
 
-DATA_DIR = '~/Dropbox/mlp-group-project/'
 START_TIME = strftime('%Y%m%d-%H%M', gmtime())
 
 parser = ArgumentParser(description='Train LstmModel.',
                         formatter_class=ArgumentDefaultsHelpFormatter)
+parser.add_argument('--data_dir', type=str,
+                    default='~/Dropbox/mlp-group-project/',
+                    help='Path to directory containing data')
 parser.add_argument('--learn_rate',  type=float, default=0.01,
                     help='Initial learning rate for Adam optimiser')
 parser.add_argument('--batch',  type=int, default=100,
@@ -21,10 +23,12 @@ parser.add_argument('--epochs', type=int, default=20,
                     help='Number of training epochs')
 parser.add_argument('--name', type=str, default=START_TIME,
                     help='Name of experiment when saving model')
+parser.add_argument('--model_dir', type=str, default='.',
+                    help='Path to directory where model will be saved')
 args = parser.parse_args()
 
 Model = LstmModel()
-TrainingSet = ASSISTDataProvider(DATA_DIR, batch_size=args.batch)
+TrainingSet = ASSISTDataProvider(args.data_dir, batch_size=args.batch)
 
 print('Experiment started at', START_TIME)
 print("Building model...")
@@ -56,7 +60,7 @@ with tf.Session() as sess:
         print("Epoch: {}, loss: {}".format(epoch, loss))
 
         # save model each epoch
-        save_path = "./{}_{}.ckpt".format(
-            args.name, epoch)
+        save_path = "{}/{}_{}.ckpt".format(
+            args.model_dir, args.name, epoch)
         train_saver.save(sess, save_path)
     print("Saved model at", save_path)
