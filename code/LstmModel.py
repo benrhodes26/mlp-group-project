@@ -118,7 +118,7 @@ class LstmModel:
         grads, trainable_vars = zip(*optimizer.compute_gradients(self.loss))
         if clip_norm:
             # grads, _ = tf.clip_by_global_norm(grads, clip_norm)
-            grads, _ = [tf.clip_by_norm(grad, clip_norm) for grad in grads]
+            grads = [tf.clip_by_norm(grad, clip_norm) for grad in grads]
 
         self.training = optimizer.apply_gradients(zip(grads, trainable_vars),
                                                   global_step=self.global_step)
