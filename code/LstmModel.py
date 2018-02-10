@@ -87,7 +87,6 @@ class LstmModel:
         logits = tf.matmul(self.outputs, sigmoid_w) + sigmoid_b
         logits = tf.reshape(logits, [-1])
         self.logits = tf.gather(logits, self.target_ids)
-        self.predictions = tf.sigmoid(self.logits)
 
     def _build_training(self, learning_rate=0.001, decay_exp=0.98,
                         clip_norm=20.0):
@@ -101,7 +100,7 @@ class LstmModel:
         https://www.tensorflow.org/versions/r0.12/api_docs/python/train
         /gradient_clipping
         """
-        loss_per_example = tf.nn.softmax_cross_entropy_with_logits_v2(
+        loss_per_example = tf.nn.sigmoid_cross_entropy_with_logits(
             logits=self.logits, labels=self.targets)
         self.loss = tf.reduce_mean(loss_per_example)
 
