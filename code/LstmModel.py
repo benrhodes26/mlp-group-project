@@ -15,15 +15,10 @@ class LstmModel:
 
     def build_graph(self, n_hidden_layers=1, n_hidden_units=200, keep_prob=1.0,
                     learning_rate=0.01, clip_norm=20.0, decay_exp=None):
-<<<<<<< HEAD
         self._build_model(n_hidden_layers=n_hidden_layers, n_hidden_units=n_hidden_units,
                           keep_prob=keep_prob)
         self._build_training(learning_rate=learning_rate, decay_exp=decay_exp, clip_norm=clip_norm)
-=======
-        self._build_model(n_hidden_layers, n_hidden_units, keep_prob)
-        self._build_training(learning_rate, clip_norm, decay_exp)
         self._build_metrics()
->>>>>>> 689aff2ad9c87b2b5041789de97f2b4b33099757
 
     def _build_model(self, n_hidden_layers=1, n_hidden_units=200,
                      keep_prob=1.0):
