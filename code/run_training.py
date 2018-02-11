@@ -4,6 +4,7 @@ from LstmModel import LstmModel
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from time import gmtime, strftime
 
+import os
 import numpy as np
 import tensorflow as tf
 
@@ -38,6 +39,10 @@ print('Experiment started at', START_TIME)
 print("Building model...")
 Model.build_graph(n_hidden_units=200, learning_rate=args.learn_rate,
                   decay_exp=args.decay)
+
+save_dir = args.model_dir+'/'+args.name
+os.mkdir(save_dir)
+
 print("Model built!")
 
 train_saver = tf.train.Saver()
@@ -46,7 +51,7 @@ with tf.Session() as sess:
     sess.run(tf.local_variables_initializer())  # required for metrics
 
     if args.restore:
-        train_saver.restore(sess, args.restore)
+        train_saver.restore(sess, tf.train.latest_checkpoint(args.restore))
         print("Model restored!")
 
     print("Starting training...")
@@ -69,6 +74,6 @@ with tf.Session() as sess:
               .format(epoch, loss, accuracy, auc))
 
         # save model each epoch
-        save_path = "{}/{}_{}.ckpt".format(args.model_dir, args.name, epoch)
+        save_path = "{}/{}_{}.ckpt".format(save_dir, args.name, epoch)
         train_saver.save(sess, save_path)
     print("Saved model at", save_path)
