@@ -8,6 +8,9 @@ import os
 import numpy as np
 import tensorflow as tf
 
+import matplotlib
+matplotlib.use('agg')
+import matplotlib.pyplot as plt
 
 START_TIME = strftime('%Y%m%d-%H%M', gmtime())
 
@@ -22,7 +25,7 @@ parser.add_argument('--learn_rate',  type=float, default=0.01,
                     help='Initial learning rate for Adam optimiser')
 parser.add_argument('--batch',  type=int, default=100,
                     help='Batch size')
-parser.add_argument('--epochs', type=int, default=5,
+parser.add_argument('--epochs', type=int, default=20,
                     help='Number of training epochs')
 parser.add_argument('--decay', type=float, default=0.98,
                     help='Fraction to decay learning rate every 100 batches')
@@ -74,3 +77,47 @@ with tf.Session() as sess:
         save_path = "{}/{}_{}.ckpt".format(save_dir, args.name, epoch)
         train_saver.save(sess, save_path)
     print("Saved model at", save_path)
+
+    #Save figure of loss, accuracy, auc graph
+    event_dir = train_writer.get_logdir()
+    event_file = ""
+    
+    for (path, names, files) in os.walk(event_dir):
+        event_file = event_dir+'/'+files[0]
+        break
+    
+    print(event_file)
+    result = []
+
+    for e in tf.train.summary_iterator(event_file):
+        value_set =[]
+        is_result = False
+        for v in e.summary.value:
+            if v.tag=='loss' or v.tag=='accuracy_1' or v.tag=='auc_1':
+                value_set.append(v.simple_value)
+                is_result = True
+                
+        if is_result:
+            result.append(value_set)
+    
+    result = np.array(result)
+    print(result)
+    e = np.arange(0.0,args.epochs, 1.0)
+    plt.plot(e, result[:,0])
+    plt.xlabel('epoch')
+    plt.ylabel('loss')
+    plt.title('Loss per epoch')
+    plt.savefig(save_dir+'/train/loss.png')
+    
+    plt.plot(e, result[:,1])
+    plt.xlabel('epoch')
+    plt.ylabel('accuracy')
+    plt.title('Accuracy per epoch')
+    plt.savefig(save_dir+'/train/accuracy.png')
+    
+    plt.plot(e, result[:,2])
+    plt.xlabel('epoch')
+    plt.ylabel('auc')
+    plt.title('AUC per epoch')
+    plt.savefig(save_dir+'/train/auc.png')
+    
