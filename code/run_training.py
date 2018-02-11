@@ -59,12 +59,6 @@ with tf.Session() as sess:
     print("Starting training...")
     for epoch in range(args.epochs):
         for i, (inputs, targets, target_ids) in enumerate(TrainingSet):
-            # ensure shapes and types as model expects
-            inputs = np.squeeze(np.array(inputs, dtype=np.float32))
-            inputs = np.transpose(inputs, [1, 0, 2])
-            targets = np.array(targets, dtype=np.float32)
-            target_ids = np.array(target_ids, dtype=np.int32)
-
             # Train!
             _, loss, (accuracy, _), (auc, _), summary = sess.run(
                 [Model.training, Model.loss, Model.accuracy, Model.auc, merged],

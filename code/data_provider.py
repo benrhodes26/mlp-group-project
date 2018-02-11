@@ -170,11 +170,13 @@ class ASSISTDataProvider(DataProvider):
             self.max_num_ans, self.max_prob_set_id = data['max_num_ans'], data['max_prob_set_id']
         else:
             inputs = sp.load_npz(data_path + '-inputs.npz')
+            self.target_ids = sp.load_npz(data_path + '-targetids.npz')
             loaded = np.load(data_path + '-targets.npz')
-            targets, self.target_ids = loaded['targets'],  loaded['target_ids']
-            self.max_num_ans, self.max_prob_set_id = int(loaded['max_num_ans']), int(loaded['max_prob_set_id'])
-        self.encoding_dim = 2 * self.max_prob_set_id + 1
+            targets = loaded['targets']
+            self.max_num_ans = int(loaded['max_num_ans'])
+            self.max_prob_set_id = int(loaded['max_prob_set_id'])
 
+        self.encoding_dim = 2 * self.max_prob_set_id + 1
         # pass the loaded data to the parent class __init__
         super(ASSISTDataProvider, self).__init__(
             inputs, targets, batch_size, max_num_batches, shuffle_order, rng)
@@ -191,21 +193,26 @@ class ASSISTDataProvider(DataProvider):
                             (self._curr_batch + 1) * self.batch_size)
         inputs_batch = self.inputs[batch_slice]
         targets_batch = self.targets[batch_slice]
-        target_ids_global = self.target_ids[batch_slice]
+        # target_ids_global = self.target_ids[batch_slice]
+        target_ids_batch = self.target_ids[batch_slice]
         self._curr_batch += 1
 
-        # extract one-hot encoded feature vectors and reshape/regroup them
+        # extract one-hot encoded feature vectors and reshape them
         # so we can feed them to the RNN
-        batch_inputs = self._extract_rnn_inputs(inputs_batch)
+        batch_inputs = inputs_batch.toarray()
+        batch_inputs = batch_inputs.reshape(self.batch_size, self.max_num_ans, self.encoding_dim)
 
         # targets_batch is a list of lists, which we need to flatten
         batch_targets = [i for sublist in targets_batch for i in sublist]
+        batch_targets = np.array(batch_targets, dtype=np.float32)
 
         # during learning, the data for each student in a batch gets shuffled together.
         # hence, we need a vector of indices to locate their predictions after learning
-        a = self.max_num_ans * self.max_prob_set_id
-        batch_target_ids = [a*i + np.array(target_ids_global[i]) for i in range(self.batch_size)]
-        batch_target_ids = [i for sublist in batch_target_ids for i in sublist]
+        # a = self.max_num_ans * self.max_prob_set_id
+        # batch_target_ids = [a*i + np.array(target_ids_global[i]) for i in range(self.batch_size)]
+        # batch_target_ids = [i for sublist in batch_target_ids for i in sublist]
+        batch_target_ids = target_ids_batch.toarray()
+        batch_target_ids = np.array(batch_target_ids.reshape(-1), dtype=np.int32)
 
         return batch_inputs, batch_targets, batch_target_ids
 
@@ -225,14 +232,6 @@ class ASSISTDataProvider(DataProvider):
         self.inputs = self.inputs[perm]
         self.targets = self.targets[perm]
         self.target_ids = self.target_ids[perm  ]
-
-    def _extract_rnn_inputs(self, inputs_batch):
-        x = inputs_batch.toarray()
-        x = x.reshape(-1, self.max_num_ans, self.encoding_dim)
-        x = x.transpose([1, 0, 2])  # sort by ordered answered, and then by student
-        x.reshape(-1, self.encoding_dim)
-        x = np.split(x, self.max_num_ans, axis=0)
-        return x
 
     def get_k_folds(self, k):
         """ Returns k pairs of DataProviders: (train_data_provider, val_data_provider)
