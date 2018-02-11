@@ -106,7 +106,7 @@ class LstmModel:
         loss_per_example = tf.nn.sigmoid_cross_entropy_with_logits(
             logits=self.logits, labels=self.targets)
         self.loss = tf.reduce_mean(loss_per_example)
-
+        tf.summary.scalar('loss', self.loss)
         # track number of batches seen
         self.global_step = tf.Variable(0, name="global_step", trainable=False)
 
@@ -128,5 +128,7 @@ class LstmModel:
 
         self.accuracy = tf.metrics.accuracy(labels=self.targets,
                                             predictions=self.predictions)
+        tf.summary.scalar('accuracy', self.accuracy[0])
         self.auc = tf.metrics.auc(labels=self.targets,
                                   predictions=self.predictions)
+        tf.summary.scalar('auc', self.auc[0])

@@ -22,7 +22,7 @@ parser.add_argument('--learn_rate',  type=float, default=0.01,
                     help='Initial learning rate for Adam optimiser')
 parser.add_argument('--batch',  type=int, default=100,
                     help='Batch size')
-parser.add_argument('--epochs', type=int, default=20,
+parser.add_argument('--epochs', type=int, default=5,
                     help='Number of training epochs')
 parser.add_argument('--decay', type=float, default=0.98,
                     help='Fraction to decay learning rate every 100 batches')
@@ -47,6 +47,8 @@ print("Model built!")
 
 train_saver = tf.train.Saver()
 with tf.Session() as sess:
+    merged = tf.summary.merge_all()
+    train_writer = tf.summary.FileWriter(save_dir+'/train', sess.graph)
     sess.run(tf.global_variables_initializer())
     sess.run(tf.local_variables_initializer())  # required for metrics
 
@@ -64,12 +66,13 @@ with tf.Session() as sess:
             target_ids = np.array(target_ids, dtype=np.int32)
 
             # Train!
-            _, loss, (accuracy, _), (auc, _) = sess.run(
-                [Model.training, Model.loss, Model.accuracy, Model.auc],
+            _, loss, (accuracy, _), (auc, _), summary = sess.run(
+                [Model.training, Model.loss, Model.accuracy, Model.auc, merged],
                 feed_dict={Model.inputs: inputs,
                            Model.targets: targets,
                            Model.target_ids: target_ids})
-
+        
+        train_writer.add_summary(summary, epoch)
         print("Epoch: {},  Loss: {:.3f},  Accuracy: {:.3f},  AUC: {:.3f}"
               .format(epoch, loss, accuracy, auc))
 
