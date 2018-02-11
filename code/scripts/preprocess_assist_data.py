@@ -69,8 +69,10 @@ encoding_dim = (2 * max_prob_set_id) + 1
 
 row_coordinates = []
 column_coordinates = []
+# target_ids = []
+target_ids_row_coords = []
+target_ids_col_coords = []
 targets = []
-target_ids = []
 for i in range(num_students):
     problems = student_to_prob_sets[str(i+1)]
     marks = student_to_marks[str(i+1)]
@@ -87,8 +89,6 @@ for i in range(num_students):
     # 0s and 1s. We then want to right pad this vector with zeros, such that all students have
     # the same length vector.
     # Instead of storing this whole feature vector, we store the indices of the 1s.
-    # padded_encoding_indices = np.zeros(max_num_ans)
-    # padded_encoding_indices[:] = encoding_indices
     indices_of_ones = encoding_dim*np.arange(num_problems) + encoding_indices
 
     # We now have the 'coordinates' of the ones in student i's feature vector.
@@ -96,21 +96,26 @@ for i in range(num_students):
     row_coordinates.extend(list(i*np.ones(num_problems)))
     column_coordinates.extend(list(indices_of_ones))
 
+    # calculate target_ids that we need after learning to extract a predictions
+    # vector for each student that corresponds to the targets vector
+    target_ids_row_coords.extend(list(i*np.ones(num_problems)))
+    target_ids_col_coords.extend(list(max_prob_set_id*np.arange(num_problems) + problems[1:] - 1))
+
     # add targets. Exclude first mark (since we have nothing to predict it with)
     targets.append(marks[1:])
 
-    # calculate target_ids that we need after learning to extract a predictions
-    # vector for each student that corresponds to the targets vector
-    target_ids.append(list(max_prob_set_id*np.arange(num_problems) + problems[1:] - 1))
-
 sparse_inputs = sp.csr_matrix((np.ones(len(row_coordinates)), (row_coordinates, column_coordinates)),
                               shape=(num_students, max_num_ans*encoding_dim))
+sparse_target_ids = sp.csr_matrix((np.ones(len(target_ids_row_coords)), (target_ids_row_coords, target_ids_col_coords)),
+                                  shape=(num_students, max_num_ans*max_prob_set_id))
 
 inputs_data_path = output_data_path + '-inputs'
+target_ids_data_path = output_data_path + '-targetids'
 targets_data_path = output_data_path + '-targets'
 
 sp.save_npz(inputs_data_path, sparse_inputs)
-np.savez(targets_data_path, targets=np.array(targets), target_ids=np.array(target_ids),
+sp.save_npz(target_ids_data_path, sparse_target_ids)
+np.savez(targets_data_path, targets=np.array(targets),
          max_num_ans=max_num_ans, max_prob_set_id=max_prob_set_id)
 
 # DATA CHECKING

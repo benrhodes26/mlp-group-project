@@ -88,7 +88,8 @@ class LstmModel:
 
         logits = tf.matmul(self.outputs, sigmoid_w) + sigmoid_b
         logits = tf.reshape(logits, [-1])
-        self.logits = tf.gather(logits, self.target_ids)
+        # self.logits = tf.gather(logits, self.target_ids)
+        self.logits = tf.dynamic_partition(logits, self.target_ids, 2)[1]
         self.predictions = tf.round(tf.nn.sigmoid(self.logits))
 
     def _build_training(self, learning_rate=0.001, decay_exp=None,
