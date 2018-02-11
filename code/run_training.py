@@ -15,6 +15,8 @@ parser = ArgumentParser(description='Train LstmModel.',
 parser.add_argument('--data_dir', type=str,
                     default='~/Dropbox/mlp-group-project/',
                     help='Path to directory containing data')
+parser.add_argument('--restore', default=None,
+                    help='Path to .ckpt file of model to continue training')
 parser.add_argument('--learn_rate',  type=float, default=0.01,
                     help='Initial learning rate for Adam optimiser')
 parser.add_argument('--batch',  type=int, default=100,
@@ -38,13 +40,16 @@ Model.build_graph(n_hidden_units=200, learning_rate=args.learn_rate,
                   decay_exp=args.decay)
 print("Model built!")
 
-print("Starting training...")
+train_saver = tf.train.Saver()
 with tf.Session() as sess:
-    train_saver = tf.train.Saver()
     sess.run(tf.global_variables_initializer())
     sess.run(tf.local_variables_initializer())  # required for metrics
-    losses = []
 
+    if args.restore:
+        train_saver.restore(sess, args.restore)
+        print("Model restored!")
+
+    print("Starting training...")
     for epoch in range(args.epochs):
         for i, (inputs, targets, target_ids) in enumerate(TrainingSet):
             # ensure shapes and types as model expects
@@ -54,18 +59,16 @@ with tf.Session() as sess:
             target_ids = np.array(target_ids, dtype=np.int32)
 
             # Train!
-            _, loss, acc, auc = sess.run(
+            _, loss, (accuracy, _), (auc, _) = sess.run(
                 [Model.training, Model.loss, Model.accuracy, Model.auc],
                 feed_dict={Model.inputs: inputs,
                            Model.targets: targets,
                            Model.target_ids: target_ids})
-            print("Training underway... Batch: {}, loss: {}".format(i, loss))
-            print("Accuracy: {}, AUC: {}".format(acc, auc))
 
-        print("Epoch: {}, loss: {}".format(epoch, loss))
+        print("Epoch: {},  Loss: {:.3f},  Accuracy: {:.3f},  AUC: {:.3f}"
+              .format(epoch, loss, accuracy, auc))
 
         # save model each epoch
-        save_path = "{}/{}_{}.ckpt".format(
-            args.model_dir, args.name, epoch)
+        save_path = "{}/{}_{}.ckpt".format(args.model_dir, args.name, epoch)
         train_saver.save(sess, save_path)
     print("Saved model at", save_path)
