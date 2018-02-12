@@ -138,14 +138,15 @@ class DataProvider(object):
 class ASSISTDataProvider(DataProvider):
     """Data provider for ASSISTments 2009/2015 student assessment data set."""
 
-    def __init__(self, data_dir, which_set='train', which_year='09', batch_size=100,
-                 max_num_batches=-1, shuffle_order=True, rng=None, data=None):
+    def __init__(self, data_dir, which_set='train', which_year='09', fraction=1,
+                 batch_size=100, max_num_batches=-1, shuffle_order=True, rng=None, data=None):
         """Create a new ASSISTments data provider object.
 
         Args:
             which_set: One of 'train' or 'test'. Determines which
                 portion of the ASSIST data this object should provide.
             which_year: either '09' or '15'. Determines which dataset to use.
+            fraction (float): fraction of dataset to use.
             batch_size (int): Number of data points to include in each batch.
             max_num_batches (int): Maximum number of batches to iterate over
                 in an epoch. If `max_num_batches * batch_size > num_data` then
@@ -166,15 +167,23 @@ class ASSISTDataProvider(DataProvider):
         self.num_classes = 2
 
         if data:
+            # load dataset
             inputs, targets, self.target_ids = data['inputs'], data['targets'], data['target_ids']
             self.max_num_ans, self.max_prob_set_id = data['max_num_ans'], data['max_prob_set_id']
         else:
-            inputs = sp.load_npz(data_path + '-inputs.npz')
-            self.target_ids = sp.load_npz(data_path + '-targetids.npz')
+            # load dataset
             loaded = np.load(data_path + '-targets.npz')
-            targets = loaded['targets']
             self.max_num_ans = int(loaded['max_num_ans'])
             self.max_prob_set_id = int(loaded['max_prob_set_id'])
+            targets = loaded['targets']
+            inputs = sp.load_npz(data_path + '-inputs.npz')
+            target_ids = sp.load_npz(data_path + '-targetids.npz')
+
+            # reduce dataset
+            num_data = int(inputs.shape[0]*fraction)
+            targets = targets[:num_data]
+            inputs = inputs[:num_data]
+            self.target_ids = target_ids[:num_data]
 
         self.encoding_dim = 2 * self.max_prob_set_id + 1
         # pass the loaded data to the parent class __init__
