@@ -139,6 +139,7 @@ class ASSISTDataProvider(DataProvider):
     """Data provider for ASSISTments 2009/2015 student assessment data set."""
 
     def __init__(self, data_dir, which_set='train', which_year='09', fraction=1,
+                 use_plus_minus_feats=False, use_compressed_sensing=False,
                  batch_size=100, max_num_batches=-1, shuffle_order=True, rng=None, data=None):
         """Create a new ASSISTments data provider object.
 
@@ -147,6 +148,10 @@ class ASSISTDataProvider(DataProvider):
                 portion of the ASSIST data this object should provide.
             which_year: either '09' or '15'. Determines which dataset to use.
             fraction (float): fraction of dataset to use.
+            use_plus_minus_feats (boolean): if True, use a different encoding
+                of the final dimension of inputs. This new encoding
+                uses a +/-1 hot vector of size max_prob_set_id + 1, instead
+                of a 1 hot vector of size 2*max_prob_set_id + 1.
             batch_size (int): Number of data points to include in each batch.
             max_num_batches (int): Maximum number of batches to iterate over
                 in an epoch. If `max_num_batches * batch_size > num_data` then
@@ -165,30 +170,58 @@ class ASSISTDataProvider(DataProvider):
         self.which_year = which_year
         self.data_dir = data_dir
         self.num_classes = 2
+        self.fraction = fraction
+        self.use_plus_minus_feats = use_plus_minus_feats
+        self.use_compressed_sensing = use_compressed_sensing
 
         if data:
-            # load dataset
             inputs, targets, self.target_ids = data['inputs'], data['targets'], data['target_ids']
             self.max_num_ans, self.max_prob_set_id = data['max_num_ans'], data['max_prob_set_id']
+            self.encoding_dim = data['encoding_dim']
         else:
-            # load dataset
-            loaded = np.load(data_path + '-targets.npz')
-            self.max_num_ans = int(loaded['max_num_ans'])
-            self.max_prob_set_id = int(loaded['max_prob_set_id'])
-            targets = loaded['targets']
-            inputs = sp.load_npz(data_path + '-inputs.npz')
-            target_ids = sp.load_npz(data_path + '-targetids.npz')
-
-            # reduce dataset
-            num_data = int(inputs.shape[0]*fraction)
-            targets = targets[:num_data]
-            inputs = inputs[:num_data]
-            self.target_ids = target_ids[:num_data]
-
-        self.encoding_dim = 2 * self.max_prob_set_id + 1
+            inputs, target_ids, targets = \
+                self.load_data(data_path, use_plus_minus_feats)
+            if use_compressed_sensing:
+                inputs = self.compress(inputs, rng)
+            inputs, targets = self.reduce_data(inputs, target_ids, targets, fraction)
         # pass the loaded data to the parent class __init__
         super(ASSISTDataProvider, self).__init__(
             inputs, targets, batch_size, max_num_batches, shuffle_order, rng)
+
+    def compress(self, inputs, rng):
+        num_students = inputs.shape[0]
+        compress_dim = 100  # value used in orginal DKT paper
+        if rng:
+            compress_matrix = rng.randn(self.encoding_dim, compress_dim)
+        else:
+            compress_matrix = np.random.randn(self.encoding_dim, compress_dim)
+        inputs = inputs.toarray()
+        inputs = np.dot(inputs.reshape(-1, self.encoding_dim), compress_matrix)
+        self.encoding_dim = compress_dim
+        return sp.csr_matrix(inputs.reshape(num_students, -1))
+
+    def reduce_data(self, inputs, target_ids, targets, fraction):
+        num_data = int(inputs.shape[0] * fraction)
+        targets = targets[:num_data]
+        inputs = inputs[:num_data]
+        self.target_ids = target_ids[:num_data]
+        return inputs, targets
+
+    def load_data(self, data_path,use_plus_minus_feats):
+        """ Load data from files, optionally reducing and/or compressing"""
+        loaded = np.load(data_path + '-targets.npz')
+        self.max_num_ans = int(loaded['max_num_ans'])
+        self.max_prob_set_id = int(loaded['max_prob_set_id'])
+        targets = loaded['targets']
+        if use_plus_minus_feats:
+            inputs = sp.load_npz(data_path + '-inputs-plus-minus.npz')
+            self.encoding_dim = self.max_prob_set_id + 1
+        else:
+            inputs = sp.load_npz(data_path + '-inputs.npz')
+            self.encoding_dim = 2 * self.max_prob_set_id + 1
+        target_ids = sp.load_npz(data_path + '-targetids.npz')
+
+        return inputs, target_ids, targets
 
     def next(self):
         """Returns next data batch or raises `StopIteration` if at end."""
@@ -206,24 +239,26 @@ class ASSISTDataProvider(DataProvider):
         target_ids_batch = self.target_ids[batch_slice]
         self._curr_batch += 1
 
+        batch_inputs, batch_target_ids, batch_targets = \
+            self.transform_batch(inputs_batch, target_ids_batch, targets_batch)
+
+        return batch_inputs, batch_targets, batch_target_ids
+
+    def transform_batch(self, inputs_batch, target_ids_batch, targets_batch):
+        """reshape batch of data ready to be processed by an RNN"""
         # extract one-hot encoded feature vectors and reshape them
         # so we can feed them to the RNN
         batch_inputs = inputs_batch.toarray()
         batch_inputs = batch_inputs.reshape(self.batch_size, self.max_num_ans, self.encoding_dim)
-
         # targets_batch is a list of lists, which we need to flatten
         batch_targets = [i for sublist in targets_batch for i in sublist]
         batch_targets = np.array(batch_targets, dtype=np.float32)
-
         # during learning, the data for each student in a batch gets shuffled together.
         # hence, we need a vector of indices to locate their predictions after learning
-        # a = self.max_num_ans * self.max_prob_set_id
-        # batch_target_ids = [a*i + np.array(target_ids_global[i]) for i in range(self.batch_size)]
-        # batch_target_ids = [i for sublist in batch_target_ids for i in sublist]
         batch_target_ids = target_ids_batch.toarray()
         batch_target_ids = np.array(batch_target_ids.reshape(-1), dtype=np.int32)
 
-        return batch_inputs, batch_targets, batch_target_ids
+        return batch_inputs, batch_target_ids, batch_targets
 
     def reset(self):
         """Resets the provider to the initial state."""
@@ -262,16 +297,26 @@ class ASSISTDataProvider(DataProvider):
             target_ids_train, targets_ids_val = target_ids[train_index], target_ids[val_index]
 
             train_data = {'inputs': inputs_train, 'targets': targets_train, 'target_ids': target_ids_train,
-                          'max_num_ans': self.max_num_ans, 'max_prob_set_id': self.max_prob_set_id}
+                          'max_num_ans': self.max_num_ans, 'max_prob_set_id': self.max_prob_set_id,
+                          'encoding_dim': self.encoding_dim}
             val_data = {'inputs': inputs_val, 'targets': targets_val, 'target_ids': targets_ids_val,
-                        'max_num_ans': self.max_num_ans, 'max_prob_set_id': self.max_prob_set_id}
+                        'max_num_ans': self.max_num_ans, 'max_prob_set_id': self.max_prob_set_id,
+                        'encoding_dim': self.encoding_dim}
 
-            train_dp = ASSISTDataProvider(self.data_dir, self.which_set, self.which_year,
-                                          self.batch_size, self.max_num_batches,
-                                          self.shuffle_order, self.rng, data=train_data)
-            val_dp = ASSISTDataProvider(self.data_dir, self.which_set, self.which_year,
-                                        self.batch_size, self.max_num_batches,
-                                        self.shuffle_order, self.rng, data=val_data)
+            train_dp = ASSISTDataProvider(data_dir=self.data_dir, which_set=self.which_set,
+                                          which_year=self.which_year, fraction=self.fraction,
+                                          use_plus_minus_feats=self.use_plus_minus_feats,
+                                          use_compressed_sensing=self.use_compressed_sensing,
+                                          batch_size=self.batch_size, max_num_batches=self.max_num_batches,
+                                          shuffle_order=self.shuffle_order,
+                                          rng=self.rng, data=train_data)
+            val_dp = ASSISTDataProvider(data_dir=self.data_dir, which_set=self.which_set,
+                                        which_year=self.which_year, fraction=self.fraction,
+                                        use_plus_minus_feats=self.use_plus_minus_feats,
+                                        use_compressed_sensing=self.use_compressed_sensing,
+                                        batch_size=self.batch_size, max_num_batches=self.max_num_batches,
+                                        shuffle_order=self.shuffle_order,
+                                        rng=self.rng, data=val_data)
             yield (train_dp, val_dp)
 
     def _validate_inputs(self, which_set, which_year, data_path):
