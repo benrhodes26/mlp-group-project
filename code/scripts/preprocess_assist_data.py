@@ -13,6 +13,16 @@ import sys
 data_dir = sys.argv[1]
 input_filename = sys.argv[2]
 output_filename = sys.argv[3]
+use_plus_minus_feats = sys.argv[4]
+
+if use_plus_minus_feats == 'False':
+    use_plus_minus_feats = False
+elif use_plus_minus_feats == 'True':
+    use_plus_minus_feats = True
+else:
+    raise (
+        'use_plus_minus should be True or False'
+    )
 
 input_data_path = os.path.join(data_dir, input_filename)
 output_data_path = os.path.join(data_dir, output_filename)
@@ -58,7 +68,10 @@ with open(input_data_path, "r") as f:
             student_to_marks[str(num_students)] = row
 
 max_prob_set_id = max(map(int, prob_set_counts.keys()))
-encoding_dim = (2 * max_prob_set_id) + 1
+if use_plus_minus_feats:
+    encoding_dim = max_prob_set_id + 1
+else:
+    encoding_dim = (2 * max_prob_set_id) + 1
 
 # We would now like to build a matrix, where each row corresponds to a student
 # and the row contains a concatenated sequence of one-hot-encoded vectors indicating the
@@ -69,7 +82,7 @@ encoding_dim = (2 * max_prob_set_id) + 1
 
 row_coordinates = []
 column_coordinates = []
-# target_ids = []
+plus_minus_ones = []
 target_ids_row_coords = []
 target_ids_col_coords = []
 targets = []
@@ -78,23 +91,32 @@ for i in range(num_students):
     marks = student_to_marks[str(i+1)]
     num_problems = len(problems) - 1  # we can't make predictions for first problem, so ignore
 
+    # ONE-HOT ENCODING FEATURES
     # for each problem (except the last) a student has answered, generate an index
     # specifying the index of the 1 in a 1-hot encoded vector.
     # this vector both encodes the problem_set_id AND whether or not the student
-    # answered correctly. Hence the vec tor has length: 2*max_prob_set_id
-    make_1_hot_index = lambda x: (1 - x[1])*x[0] + x[1]*(max_prob_set_id + x[0])
-    encoding_indices = np.array(list(map(make_1_hot_index, zip(problems[:-1], marks[:-1]))))
-
+    # answered correctly. Hence the vector has length: 2*max_prob_set_id + 1 (we ignore first element).
     # we want to concatenate the above 1 hot vectors in order to obtain a very long feature vector of
     # 0s and 1s. We then want to right pad this vector with zeros, such that all students have
     # the same length vector.
     # Instead of storing this whole feature vector, we store the indices of the 1s.
-    indices_of_ones = encoding_dim*np.arange(num_problems) + encoding_indices
+    if not use_plus_minus_feats:
+        make_1_hot_index = lambda x: (1 - x[1])*x[0] + x[1]*(max_prob_set_id + x[0])
+        encoding_indices = np.array(list(map(make_1_hot_index, zip(problems[:-1], marks[:-1]))))
+        col_inds = encoding_dim * np.arange(num_problems) + encoding_indices
+
+    # PLUS/MINUS 1 FEATURES
+    # instead of using one-hot vectors of dim 2*max_prob_set_id + 1, use a vector
+    # of length  max_prob_set_id + 1, and store correct answers as 1s and incorrect
+    # answers as -1s
+    if use_plus_minus_feats:
+        col_inds = encoding_dim * np.arange(num_problems) + problems[:-1]
+        plus_minus_ones.extend(marks[:-1])
 
     # We now have the 'coordinates' of the ones in student i's feature vector.
     # Let's now add to a global set of coordinates for all students
     row_coordinates.extend(list(i*np.ones(num_problems)))
-    column_coordinates.extend(list(indices_of_ones))
+    column_coordinates.extend(list(col_inds))
 
     # calculate target_ids that we need after learning to extract a predictions
     # vector for each student that corresponds to the targets vector
@@ -104,12 +126,24 @@ for i in range(num_students):
     # add targets. Exclude first mark (since we have nothing to predict it with)
     targets.append(marks[1:])
 
-sparse_inputs = sp.csr_matrix((np.ones(len(row_coordinates)), (row_coordinates, column_coordinates)),
-                              shape=(num_students, max_num_ans*encoding_dim))
-sparse_target_ids = sp.csr_matrix((np.ones(len(target_ids_row_coords)), (target_ids_row_coords, target_ids_col_coords)),
-                                  shape=(num_students, max_num_ans*max_prob_set_id))
+# save data to file
+if use_plus_minus_feats:
+    print('saving plus minus')
+    converted_targets = 2 * np.array(plus_minus_ones) - 1
+    sparse_inputs = sp.csr_matrix((converted_targets, (row_coordinates, column_coordinates)),
+                                  shape=(num_students, max_num_ans * encoding_dim))
+else:
+    print('saving one-hot')
+    sparse_inputs = sp.csr_matrix((np.ones(len(row_coordinates)), (row_coordinates, column_coordinates)),
+                                  shape=(num_students, max_num_ans * encoding_dim))
 
-inputs_data_path = output_data_path + '-inputs'
+sparse_target_ids = sp.csr_matrix((np.ones(len(target_ids_row_coords)), (target_ids_row_coords, target_ids_col_coords)),
+                              shape=(num_students, max_num_ans*max_prob_set_id))
+if use_plus_minus_feats:
+    inputs_data_path = output_data_path + '-inputs-plus-minus'
+else:
+    inputs_data_path = output_data_path + '-inputs'
+
 target_ids_data_path = output_data_path + '-targetids'
 targets_data_path = output_data_path + '-targets'
 

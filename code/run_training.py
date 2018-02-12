@@ -19,6 +19,10 @@ parser = ArgumentParser(description='Train LstmModel.',
 parser.add_argument('--data_dir', type=str,
                     default='~/Dropbox/mlp-group-project/',
                     help='Path to directory containing data')
+parser.add_argument('--which_set', type=str,
+                    default='train', help='Either train or test')
+parser.add_argument('--which_year', type=str,
+                    default='15', help='Year of ASSIST dataset. Either 09 or 15')
 parser.add_argument('--restore', default=None,
                     help='Path to .ckpt file of model to continue training')
 parser.add_argument('--learn_rate',  type=float, default=0.01,
@@ -29,14 +33,34 @@ parser.add_argument('--epochs', type=int, default=100,
                     help='Number of training epochs')
 parser.add_argument('--decay', type=float, default=0.98,
                     help='Fraction to decay learning rate every 100 batches')
+parser.add_argument('--use_plus_minus_feats', type=bool, default=False,
+                    help='Whether or not to use +/-1s for feature encoding')
+parser.add_argument('--compressed_sensing', type=bool, default=False,
+                    help='Whether or not to use compressed sensing')
 parser.add_argument('--name', type=str, default=START_TIME,
                     help='Name of experiment when saving model')
 parser.add_argument('--model_dir', type=str, default='.',
                     help='Path to directory where model will be saved')
 args = parser.parse_args()
 
+<<<<<<< HEAD
 Model = LstmModel()
 TrainingSet = ASSISTDataProvider(args.data_dir, batch_size=args.batch, which_year='15')
+=======
+training_set_before_split = ASSISTDataProvider(args.data_dir, which_set=args.which_set,
+                                 which_year=args.which_year, batch_size=args.batch,
+                                 use_plus_minus_feats=args.use_plus_minus_feats,
+                                 use_compressed_sensing=args.compressed_sensing)
+max_time_steps = training_set_before_split.max_num_ans
+feature_len = training_set_before_split.encoding_dim
+n_distinct_questions = training_set_before_split.max_prob_set_id
+
+for train, val in training_set_before_split.get_k_folds(5):
+    train_set, val_set = train, val
+    break
+Model = LstmModel(max_time_steps=max_time_steps, feature_len=feature_len,
+                  n_distinct_questions=n_distinct_questions)
+>>>>>>> 6c1c02dd3ab777c5bc4a62ae07c6b7ab827f71cd
 
 print('Experiment started at', START_TIME)
 print("Building model...")
@@ -61,7 +85,7 @@ with tf.Session() as sess:
 
     print("Starting training...")
     for epoch in range(args.epochs):
-        for i, (inputs, targets, target_ids) in enumerate(TrainingSet):
+        for i, (inputs, targets, target_ids) in enumerate(train_set):
             # Train!
             _, loss, (accuracy, _), (auc, _), summary = sess.run(
                 [Model.training, Model.loss, Model.accuracy, Model.auc, merged],
