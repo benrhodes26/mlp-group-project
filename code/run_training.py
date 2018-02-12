@@ -43,10 +43,8 @@ parser.add_argument('--model_dir', type=str, default='.',
                     help='Path to directory where model will be saved')
 args = parser.parse_args()
 
-<<<<<<< HEAD
 Model = LstmModel()
 TrainingSet = ASSISTDataProvider(args.data_dir, batch_size=args.batch, which_year='15')
-=======
 training_set_before_split = ASSISTDataProvider(args.data_dir, which_set=args.which_set,
                                  which_year=args.which_year, batch_size=args.batch,
                                  use_plus_minus_feats=args.use_plus_minus_feats,
@@ -60,7 +58,6 @@ for train, val in training_set_before_split.get_k_folds(5):
     break
 Model = LstmModel(max_time_steps=max_time_steps, feature_len=feature_len,
                   n_distinct_questions=n_distinct_questions)
->>>>>>> 6c1c02dd3ab777c5bc4a62ae07c6b7ab827f71cd
 
 print('Experiment started at', START_TIME)
 print("Building model...")
