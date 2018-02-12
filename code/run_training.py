@@ -5,12 +5,10 @@ from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from time import gmtime, strftime
 
 import os
-import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
 
-matplotlib.use('agg')
 
 START_TIME = strftime('%Y%m%d-%H%M', gmtime())
 
