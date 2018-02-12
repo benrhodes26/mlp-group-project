@@ -7,7 +7,6 @@ from time import gmtime, strftime
 import os
 import numpy as np
 import tensorflow as tf
-
 import matplotlib
 matplotlib.use('agg')
 import matplotlib.pyplot as plt
@@ -22,7 +21,7 @@ parser.add_argument('--data_dir', type=str,
 parser.add_argument('--which_set', type=str,
                     default='train', help='Either train or test')
 parser.add_argument('--which_year', type=str,
-                    default='15', help='Year of ASSIST dataset. Either 09 or 15')
+                    default='15', help='Year of ASSIST data. Either 09 or 15')
 parser.add_argument('--restore', default=None,
                     help='Path to .ckpt file of model to continue training')
 parser.add_argument('--learn_rate',  type=float, default=0.01,
@@ -43,12 +42,19 @@ parser.add_argument('--model_dir', type=str, default='.',
                     help='Path to directory where model will be saved')
 args = parser.parse_args()
 
+<<<<<<< HEAD
 Model = LstmModel()
 TrainingSet = ASSISTDataProvider(args.data_dir, batch_size=args.batch, which_year='15')
 training_set_before_split = ASSISTDataProvider(args.data_dir, which_set=args.which_set,
                                  which_year=args.which_year, batch_size=args.batch,
                                  use_plus_minus_feats=args.use_plus_minus_feats,
                                  use_compressed_sensing=args.compressed_sensing)
+=======
+training_set_before_split = ASSISTDataProvider(
+    args.data_dir, which_set=args.which_set, which_year=args.which_year,
+    batch_size=args.batch, use_plus_minus_feats=args.use_plus_minus_feats,
+    use_compressed_sensing=args.compressed_sensing)
+>>>>>>> c0de9616b843673ed262a26a2d23b25994fc8137
 max_time_steps = training_set_before_split.max_num_ans
 feature_len = training_set_before_split.encoding_dim
 n_distinct_questions = training_set_before_split.max_prob_set_id
@@ -89,7 +95,7 @@ with tf.Session() as sess:
                 feed_dict={Model.inputs: inputs,
                            Model.targets: targets,
                            Model.target_ids: target_ids})
-        
+
         train_writer.add_summary(summary, epoch)
         print("Epoch: {},  Loss: {:.3f},  Accuracy: {:.3f},  AUC: {:.3f}"
               .format(epoch, loss, accuracy, auc))
@@ -99,49 +105,48 @@ with tf.Session() as sess:
         train_saver.save(sess, save_path)
     print("Saved model at", save_path)
 
-    #Save figure of loss, accuracy, auc graph
+    # Save figure of loss, accuracy, auc graph
     event_dir = train_writer.get_logdir()
     event_file = ""
-    
+
     for (path, names, files) in os.walk(event_dir):
         event_file = event_dir+'/'+files[0]
         break
-    
+
     print(event_file)
     result = []
 
     for e in tf.train.summary_iterator(event_file):
-        value_set =[]
+        value_set = []
         is_result = False
         for v in e.summary.value:
-            if v.tag=='loss' or v.tag=='accuracy_1' or v.tag=='auc_1':
+            if v.tag == 'loss' or v.tag == 'accuracy_1' or v.tag == 'auc_1':
                 value_set.append(v.simple_value)
                 is_result = True
-                
+
         if is_result:
             result.append(value_set)
-    
+
     result = np.array(result)
     print(result)
-    e = np.arange(0.0,args.epochs, 1.0)
+    e = np.arange(0.0, args.epochs, 1.0)
     plt.figure()
-    plt.plot(e, result[:,0])
+    plt.plot(e, result[:, 0])
     plt.xlabel('epoch')
     plt.ylabel('loss')
     plt.title('Loss per epoch')
     plt.savefig(save_dir+'/train/loss.png')
-    
+
     plt.figure()
-    plt.plot(e, result[:,1])
+    plt.plot(e, result[:, 1])
     plt.xlabel('epoch')
     plt.ylabel('accuracy')
     plt.title('Accuracy per epoch')
     plt.savefig(save_dir+'/train/accuracy.png')
-    
+
     plt.figure()
-    plt.plot(e, result[:,2])
+    plt.plot(e, result[:, 2])
     plt.xlabel('epoch')
     plt.ylabel('auc')
     plt.title('AUC per epoch')
     plt.savefig(save_dir+'/train/auc.png')
-    
