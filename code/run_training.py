@@ -25,7 +25,7 @@ parser.add_argument('--learn_rate',  type=float, default=0.01,
                     help='Initial learning rate for Adam optimiser')
 parser.add_argument('--batch',  type=int, default=100,
                     help='Batch size')
-parser.add_argument('--epochs', type=int, default=20,
+parser.add_argument('--epochs', type=int, default=100,
                     help='Number of training epochs')
 parser.add_argument('--decay', type=float, default=0.98,
                     help='Fraction to decay learning rate every 100 batches')
@@ -36,7 +36,7 @@ parser.add_argument('--model_dir', type=str, default='.',
 args = parser.parse_args()
 
 Model = LstmModel()
-TrainingSet = ASSISTDataProvider(args.data_dir, batch_size=args.batch)
+TrainingSet = ASSISTDataProvider(args.data_dir, batch_size=args.batch, which_year='15')
 
 print('Experiment started at', START_TIME)
 print("Building model...")
