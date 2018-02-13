@@ -12,20 +12,35 @@ class LstmModel:
         self.max_time_steps = max_time_steps
         self.feature_len = feature_len
         self.n_distinct_questions = n_distinct_questions
-        self.is_training=is_training
+        self.is_training = is_training
 
-    def build_graph(self, n_hidden_layers=1, n_hidden_units=200, keep_prob=1.0,
-                    learning_rate=0.01, clip_norm=20.0, decay_exp=None, inputs=None, targets=None, target_ids=None):
-        self._build_model(n_hidden_layers=n_hidden_layers,
-                          n_hidden_units=n_hidden_units, keep_prob=keep_prob,inputs=inputs, targets=targets, target_ids=target_ids)
+    def build_graph(
+            self,
+            n_hidden_layers=1,
+            n_hidden_units=200,
+            keep_prob=1.0,
+            learning_rate=0.01,
+            clip_norm=20.0,
+            decay_exp=None,
+            inputs=None,
+            targets=None,
+            target_ids=None):
+        self._build_model(
+            n_hidden_layers=n_hidden_layers,
+            n_hidden_units=n_hidden_units,
+            keep_prob=keep_prob,
+            inputs=inputs,
+            targets=targets,
+            target_ids=target_ids)
         if self.is_training:
-            self._build_training(learning_rate=learning_rate, decay_exp=decay_exp,
-                             clip_norm=clip_norm)
+            self._build_training(
+                learning_rate=learning_rate,
+                decay_exp=decay_exp,
+                clip_norm=clip_norm)
         self._build_metrics(targets=targets)
-    
-    
+
     def _build_model(self, n_hidden_layers=1, n_hidden_units=200,
-                     keep_prob=1.0, inputs=None,targets=None, target_ids=None):
+                     keep_prob=1.0, inputs=None, targets=None, target_ids=None):
         """Build a TensorFlow computational graph for an LSTM network.
 
         Model based on "DKT paper" (see section 3):
@@ -46,12 +61,9 @@ class LstmModel:
         keep_prob : float in [0, 1] (default=1.0)
             Probability a unit is kept in dropout layer
         """
-        
 
-        
-
-            # model. LSTM layer(s) then linear layer (softmax applied in loss)
-        cell = tf.nn.rnn_cell.BasicLSTMCell(n_hidden_units, reuse = tf.AUTO_REUSE)
+        # model. LSTM layer(s) then linear layer (softmax applied in loss)
+        cell = tf.nn.rnn_cell.BasicLSTMCell(n_hidden_units, reuse=tf.AUTO_REUSE)
         if keep_prob < 1:
             cell = tf.nn.rnn_cell.DropoutWrapper(cell, keep_prob)
         if n_hidden_layers > 1:
@@ -59,9 +71,9 @@ class LstmModel:
             cell = tf.nn.rnn_cell.MultiRNNCell(cells)
 
         self.outputs, self.state = tf.nn.dynamic_rnn(cell=cell,
-                                                         inputs=inputs,
-                                                         dtype=tf.float32)
-        
+                                                     inputs=inputs,
+                                                     dtype=tf.float32)
+
         try:
             sigmoid_w = tf.get_variable(dtype=tf.float32,
                                         name="sigmoid_w",
@@ -70,7 +82,7 @@ class LstmModel:
             sigmoid_b = tf.get_variable(dtype=tf.float32,
                                         name="sigmoid_b",
                                         shape=[self.n_distinct_questions])
-            
+
         except ValueError:
             tf.get_variable_scope().reuse_variables()
             sigmoid_w = tf.get_variable("sigmoid_w")
@@ -86,7 +98,7 @@ class LstmModel:
         # self.logits = tf.gather(logits, self.target_ids)
         self.logits = tf.dynamic_partition(logits, target_ids, 2)[1]
         self.predictions = tf.round(tf.nn.sigmoid(self.logits))
-        
+
         loss_per_example = tf.nn.sigmoid_cross_entropy_with_logits(
             logits=self.logits, labels=targets)
         self.loss = tf.reduce_mean(loss_per_example)
@@ -103,7 +115,6 @@ class LstmModel:
         https://www.tensorflow.org/versions/r0.12/api_docs/python/train
         /gradient_clipping
         """
-        
 
         # track number of batches seen
         self.global_step = tf.Variable(0, name="global_step", trainable=False)
@@ -112,8 +123,7 @@ class LstmModel:
             learning_rate = tf.train.exponential_decay(
                 learning_rate=learning_rate, global_step=self.global_step,
                 decay_rate=decay_exp, decay_steps=100, staircase=True)
-        
-        
+
         optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
         grads, trainable_vars = zip(*optimizer.compute_gradients(self.loss))
         if clip_norm:
@@ -122,7 +132,6 @@ class LstmModel:
 
         self.training = optimizer.apply_gradients(zip(grads, trainable_vars),
                                                   global_step=self.global_step)
-        
 
     def _build_metrics(self, targets=None):
 
@@ -130,4 +139,3 @@ class LstmModel:
                                             predictions=self.predictions)
         self.auc = tf.metrics.auc(labels=targets,
                                   predictions=self.predictions)
-        
