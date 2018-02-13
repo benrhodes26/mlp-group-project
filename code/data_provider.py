@@ -152,6 +152,7 @@ class ASSISTDataProvider(DataProvider):
                 of the final dimension of inputs. This new encoding
                 uses a +/-1 hot vector of size max_prob_set_id + 1, instead
                 of a 1 hot vector of size 2*max_prob_set_id + 1.
+            use_compressed_sensing:
             batch_size (int): Number of data points to include in each batch.
             max_num_batches (int): Maximum number of batches to iterate over
                 in an epoch. If `max_num_batches * batch_size > num_data` then
@@ -181,9 +182,9 @@ class ASSISTDataProvider(DataProvider):
         else:
             inputs, target_ids, targets = \
                 self.load_data(data_path, use_plus_minus_feats)
+            inputs, targets = self.reduce_data(inputs, target_ids, targets, fraction)
             if use_compressed_sensing:
                 inputs = self.compress(inputs, rng)
-            inputs, targets = self.reduce_data(inputs, target_ids, targets, fraction)
         # pass the loaded data to the parent class __init__
         super(ASSISTDataProvider, self).__init__(
             inputs, targets, batch_size, max_num_batches, shuffle_order, rng)

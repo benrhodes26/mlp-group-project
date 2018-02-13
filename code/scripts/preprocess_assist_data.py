@@ -128,12 +128,10 @@ for i in range(num_students):
 
 # save data to file
 if use_plus_minus_feats:
-    print('saving plus minus')
     converted_targets = 2 * np.array(plus_minus_ones) - 1
     sparse_inputs = sp.csr_matrix((converted_targets, (row_coordinates, column_coordinates)),
                                   shape=(num_students, max_num_ans * encoding_dim))
 else:
-    print('saving one-hot')
     sparse_inputs = sp.csr_matrix((np.ones(len(row_coordinates)), (row_coordinates, column_coordinates)),
                                   shape=(num_students, max_num_ans * encoding_dim))
 
