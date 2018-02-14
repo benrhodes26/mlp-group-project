@@ -7,22 +7,40 @@ class LstmModel:
         return "LstmModel"
 
     def __init__(self, max_time_steps=973, feature_len=293,
-                 n_distinct_questions=146):
+                 n_distinct_questions=146, is_training=True):
         """Initialise task-specific parameters."""
         self.max_time_steps = max_time_steps
         self.feature_len = feature_len
         self.n_distinct_questions = n_distinct_questions
+        self.is_training = is_training
 
-    def build_graph(self, n_hidden_layers=1, n_hidden_units=200, keep_prob=1.0,
-                    learning_rate=0.01, clip_norm=20.0, decay_exp=None):
-        self._build_model(n_hidden_layers=n_hidden_layers,
-                          n_hidden_units=n_hidden_units, keep_prob=keep_prob)
-        self._build_training(learning_rate=learning_rate, decay_exp=decay_exp,
-                             clip_norm=clip_norm)
-        self._build_metrics()
+    def build_graph(
+            self,
+            n_hidden_layers=1,
+            n_hidden_units=200,
+            keep_prob=1.0,
+            learning_rate=0.01,
+            clip_norm=20.0,
+            decay_exp=None,
+            inputs=None,
+            targets=None,
+            target_ids=None):
+        self._build_model(
+            n_hidden_layers=n_hidden_layers,
+            n_hidden_units=n_hidden_units,
+            keep_prob=keep_prob,
+            inputs=inputs,
+            targets=targets,
+            target_ids=target_ids)
+        if self.is_training:
+            self._build_training(
+                learning_rate=learning_rate,
+                decay_exp=decay_exp,
+                clip_norm=clip_norm)
+        self._build_metrics(targets=targets)
 
     def _build_model(self, n_hidden_layers=1, n_hidden_units=200,
-                     keep_prob=1.0):
+                     keep_prob=1.0, inputs=None, targets=None, target_ids=None):
         """Build a TensorFlow computational graph for an LSTM network.
 
         Model based on "DKT paper" (see section 3):
@@ -43,26 +61,9 @@ class LstmModel:
         keep_prob : float in [0, 1] (default=1.0)
             Probability a unit is kept in dropout layer
         """
-        tf.reset_default_graph()
-
-        # data. 'None' means any length batch size accepted
-        self.inputs = tf.placeholder(
-            tf.float32,
-            shape=[None, self.max_time_steps, self.feature_len],
-            name='inputs')
-
-        # 'None' because may have answered any number of questions
-        self.targets = tf.placeholder(tf.float32,
-                                      shape=[None],
-                                      name='targets')
-
-        # int type required for tf.gather function
-        self.target_ids = tf.placeholder(tf.int32,
-                                         shape=[None],
-                                         name='target_ids')
 
         # model. LSTM layer(s) then linear layer (softmax applied in loss)
-        cell = tf.nn.rnn_cell.BasicLSTMCell(n_hidden_units)
+        cell = tf.nn.rnn_cell.BasicLSTMCell(n_hidden_units, reuse=tf.AUTO_REUSE)
         if keep_prob < 1:
             cell = tf.nn.rnn_cell.DropoutWrapper(cell, keep_prob)
         if n_hidden_layers > 1:
@@ -70,27 +71,37 @@ class LstmModel:
             cell = tf.nn.rnn_cell.MultiRNNCell(cells)
 
         self.outputs, self.state = tf.nn.dynamic_rnn(cell=cell,
-                                                     inputs=self.inputs,
+                                                     inputs=inputs,
                                                      dtype=tf.float32)
 
-        sigmoid_w = tf.get_variable(dtype=tf.float32,
-                                    name="sigmoid_w",
-                                    shape=[n_hidden_units,
-                                           self.n_distinct_questions])
-        sigmoid_b = tf.get_variable(dtype=tf.float32,
-                                    name="sigmoid_b",
-                                    shape=[self.n_distinct_questions])
+        try:
+            sigmoid_w = tf.get_variable(dtype=tf.float32,
+                                        name="sigmoid_w",
+                                        shape=[n_hidden_units,
+                                               self.n_distinct_questions])
+            sigmoid_b = tf.get_variable(dtype=tf.float32,
+                                        name="sigmoid_b",
+                                        shape=[self.n_distinct_questions])
 
-        # reshaping as done in GD paper code
-        # first dim now batch_size times max_time_steps
+        except ValueError:
+            tf.get_variable_scope().reuse_variables()
+            sigmoid_w = tf.get_variable("sigmoid_w")
+            sigmoid_b = tf.get_variable("sigmoid_b")
+
+            # reshaping as done in GD paper code
+            # first dim now batch_size times max_time_steps
         self.outputs = tf.reshape(self.outputs,
                                   shape=[-1, n_hidden_units])
 
         logits = tf.matmul(self.outputs, sigmoid_w) + sigmoid_b
         logits = tf.reshape(logits, [-1])
         # self.logits = tf.gather(logits, self.target_ids)
-        self.logits = tf.dynamic_partition(logits, self.target_ids, 2)[1]
+        self.logits = tf.dynamic_partition(logits, target_ids, 2)[1]
         self.predictions = tf.round(tf.nn.sigmoid(self.logits))
+
+        loss_per_example = tf.nn.sigmoid_cross_entropy_with_logits(
+            logits=self.logits, labels=targets)
+        self.loss = tf.reduce_mean(loss_per_example)
 
     def _build_training(self, learning_rate=0.001, decay_exp=None,
                         clip_norm=20.0):
@@ -104,10 +115,7 @@ class LstmModel:
         https://www.tensorflow.org/versions/r0.12/api_docs/python/train
         /gradient_clipping
         """
-        loss_per_example = tf.nn.sigmoid_cross_entropy_with_logits(
-            logits=self.logits, labels=self.targets)
-        self.loss = tf.reduce_mean(loss_per_example)
-        tf.summary.scalar('loss', self.loss)
+
         # track number of batches seen
         self.global_step = tf.Variable(0, name="global_step", trainable=False)
 
@@ -125,11 +133,9 @@ class LstmModel:
         self.training = optimizer.apply_gradients(zip(grads, trainable_vars),
                                                   global_step=self.global_step)
 
-    def _build_metrics(self):
+    def _build_metrics(self, targets=None):
 
-        self.accuracy = tf.metrics.accuracy(labels=self.targets,
+        self.accuracy = tf.metrics.accuracy(labels=targets,
                                             predictions=self.predictions)
-        tf.summary.scalar('accuracy', self.accuracy[0])
-        self.auc = tf.metrics.auc(labels=self.targets,
+        self.auc = tf.metrics.auc(labels=targets,
                                   predictions=self.predictions)
-        tf.summary.scalar('auc', self.auc[0])
