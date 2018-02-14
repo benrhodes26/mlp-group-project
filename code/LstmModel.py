@@ -88,13 +88,12 @@ class LstmModel:
 
         logits = tf.matmul(self.outputs, sigmoid_w) + sigmoid_b
         logits = tf.reshape(logits, [-1])
-        # self.logits = tf.gather(logits, self.target_ids)
         self.logits = tf.dynamic_partition(logits, self.target_ids, 2)[1]
         self.predictions = tf.round(tf.nn.sigmoid(self.logits))
 
     def _build_training(self, learning_rate=0.001, decay_exp=None,
                         clip_norm=20.0):
-        """Define parameters updates, with optional
+        """Define parameters updates.
 
         Applies exponential learning rate decay (optional). See:
         https://www.tensorflow.org/versions/r0.12/api_docs/python/train
@@ -126,7 +125,7 @@ class LstmModel:
                                                   global_step=self.global_step)
 
     def _build_metrics(self):
-
+        """Add ability to compute accuracy and AUC."""
         self.accuracy = tf.metrics.accuracy(labels=self.targets,
                                             predictions=self.predictions)
         tf.summary.scalar('accuracy', self.accuracy[0])
