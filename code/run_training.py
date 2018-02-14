@@ -9,11 +9,10 @@ import os
 import numpy as np
 import tensorflow as tf
 
-#global graph
 START_TIME = strftime('%Y%m%d-%H%M', gmtime())
 
 
-def Arguments():
+def arguments():
     parser = ArgumentParser(description='Train LstmModel.',
                             formatter_class=ArgumentDefaultsHelpFormatter)
     parser.add_argument('--data_dir', type=str,
@@ -46,22 +45,6 @@ def Arguments():
     return parser.parse_args()
 
 
-class DataSet(object):
-    # Input Data class
-    def __init__(
-            self,
-            data,
-            max_time_steps,
-            feature_len,
-            n_distinct_questions,
-            name=None):
-        self.data = data
-        self.max_time_steps = max_time_steps
-        self.feature_len = feature_len
-        self.n_distinct_questions = n_distinct_questions
-        self.name = name
-
-
 def GetDataSet(args):
     "Getting training and validation DataProviders."
 
@@ -70,26 +53,9 @@ def GetDataSet(args):
         batch_size=args.batch, use_plus_minus_feats=args.use_plus_minus_feats,
         use_compressed_sensing=args.compressed_sensing)
 
-    max_time_steps = training_set_before_split.max_num_ans
-    feature_len = training_set_before_split.encoding_dim
-    n_distinct_questions = training_set_before_split.max_prob_set_id
-
     for train, val in training_set_before_split.get_k_folds(5):
-        train_set, val_set = train, val
+        train, valid = train, val
         break
-
-    train = DataSet(
-        train_set,
-        max_time_steps,
-        feature_len,
-        n_distinct_questions,
-        name="Train")
-    valid = DataSet(
-        val_set,
-        max_time_steps,
-        feature_len,
-        n_distinct_questions,
-        name="Valid")
 
     return train, valid
 
@@ -134,7 +100,7 @@ def Plotting(event_dir, epochs, save_dir, train_result, valid_result):
 
 def main(_):
 
-    args = Arguments()
+    args = arguments()
     train_set, valid_set = GetDataSet(args)
 
     print('Experiment started at', START_TIME)
@@ -146,7 +112,7 @@ def main(_):
                                                     0.1)
         data_inputs = tf.placeholder(
                 tf.float32,
-                shape=[None, train_set.max_time_steps, train_set.feature_len],
+                shape=[None, train_set.max_num_ans, train_set.encoding_dim],
                 name='inputs')
         data_targets = tf.placeholder(tf.float32,
                                       shape=[None],
@@ -156,12 +122,12 @@ def main(_):
                                          name='target_ids')
         with tf.name_scope("Train"):
             model_train = LstmModel(
-                max_time_steps=train_set.max_time_steps,
-                feature_len=train_set.feature_len,
-                n_distinct_questions=train_set.n_distinct_questions,
+                max_time_steps=train_set.max_num_ans,
+                feature_len=train_set.encoding_dim,
+                n_distinct_questions=train_set.max_prob_set_id,
                 is_training=True)
 
-            with tf.variable_scope("Model", reuse=None, initializer=initializer):
+            with tf.variable_scope("Model", initializer=initializer):
                 model_train.build_graph(
                     n_hidden_units=200,
                     learning_rate=args.learn_rate,
@@ -176,9 +142,9 @@ def main(_):
 
         with tf.name_scope("Valid"):
             model_valid = LstmModel(
-                max_time_steps=train_set.max_time_steps,
-                feature_len=train_set.feature_len,
-                n_distinct_questions=train_set.n_distinct_questions,
+                max_time_steps=train_set.max_num_ans,
+                feature_len=train_set.encoding_dim,
+                n_distinct_questions=train_set.max_prob_set_id,
                 is_training=False)
 
             with tf.variable_scope("Model", reuse=True, initializer=initializer):
@@ -222,7 +188,7 @@ def main(_):
             print("Starting training...")
             for epoch in range(args.epochs):
                 train_loss, train_accuracy, train_auc, train_summary = run_epochs(
-                    sess, model_train, train_set.data, merged, data_inputs, data_targets, data_target_ids, model_op=model_train.training)
+                    sess, model_train, train_set, merged, data_inputs, data_targets, data_target_ids, model_op=model_train.training)
 
                 valid_loss, valid_accuracy, valid_auc, valid_summary = run_epochs(
                     sess, model_train, valid_set.data, merged, data_inputs, data_targets, data_target_ids)
