@@ -43,9 +43,13 @@ parser.add_argument('--model_dir', type=str, default='.',
 args = parser.parse_args()
 
 training_set_before_split = ASSISTDataProvider(
-    args.data_dir, which_set=args.which_set, which_year=args.which_year,
-    batch_size=args.batch, use_plus_minus_feats=args.use_plus_minus_feats,
+    args.data_dir,
+    which_set=args.which_set,
+    which_year=args.which_year,
+    batch_size=args.batch,
+    use_plus_minus_feats=args.use_plus_minus_feats,
     use_compressed_sensing=args.compressed_sensing)
+
 max_time_steps = training_set_before_split.max_num_ans
 feature_len = training_set_before_split.encoding_dim
 n_distinct_questions = training_set_before_split.max_prob_set_id
@@ -53,6 +57,7 @@ n_distinct_questions = training_set_before_split.max_prob_set_id
 for train, val in training_set_before_split.get_k_folds(5):
     train_set, val_set = train, val
     break
+
 Model = LstmModel(max_time_steps=max_time_steps, feature_len=feature_len,
                   n_distinct_questions=n_distinct_questions)
 
@@ -61,7 +66,7 @@ print("Building model...")
 Model.build_graph(n_hidden_units=200, learning_rate=args.learn_rate,
                   decay_exp=args.decay)
 
-save_dir = args.model_dir+'/'+args.name
+save_dir = os.path.join(args.model_dir, args.name)
 os.mkdir(save_dir)
 
 print("Model built!")
@@ -69,7 +74,8 @@ print("Model built!")
 train_saver = tf.train.Saver()
 with tf.Session() as sess:
     merged = tf.summary.merge_all()
-    train_writer = tf.summary.FileWriter(save_dir+'/train', sess.graph)
+    logdir = os.path.join(save_dir, 'train')
+    train_writer = tf.summary.FileWriter(logdir, graph=sess.graph)
     sess.run(tf.global_variables_initializer())
     sess.run(tf.local_variables_initializer())  # required for metrics
 
@@ -79,38 +85,55 @@ with tf.Session() as sess:
 
     print("Starting training...")
     for epoch in range(args.epochs):
+        # Train one epoch!
+        loss_total = 0
+        accuracy_total = 0
+        auc_total = 0
         for i, (inputs, targets, target_ids) in enumerate(train_set):
-            # Train!
             _, loss, (accuracy, _), (auc, _), summary = sess.run(
                 [Model.training, Model.loss, Model.accuracy, Model.auc, merged],
                 feed_dict={Model.inputs: inputs,
                            Model.targets: targets,
                            Model.target_ids: target_ids})
 
-        train_writer.add_summary(summary, epoch)
+            loss_total += loss
+            accuracy_total += accuracy
+            auc_total += auc
         print("Epoch: {},  Loss: {:.3f},  Accuracy: {:.3f},  AUC: {:.3f}"
-              .format(epoch, loss, accuracy, auc))
+              .format(epoch, loss_total/(i+1), accuracy_total/(i+1),
+                      auc_total/(i+1)))
+        train_writer.add_summary(summary, epoch)
 
         # save model each epoch
-        save_path = "{}/{}_{}.ckpt".format(save_dir, args.name, epoch)
-        train_saver.save(sess, save_path)
-    print("Saved model at", save_path)
+        save_file = "{}/{}_{}.ckpt".format(save_dir, args.name, epoch)
+        train_saver.save(sess, save_file)
+
+        # Compute metrics on validation set (no training)
+        loss_total = 0
+        accuracy_total = 0
+        auc_total = 0
+        for i, (inputs, targets, target_ids) in enumerate(val_set):
+            loss, (accuracy, _), (auc, _) = sess.run(
+                [Model.loss, Model.accuracy, Model.auc],
+                feed_dict={Model.inputs: inputs,
+                           Model.targets: targets,
+                           Model.target_ids: target_ids})
+            loss_total += loss
+            accuracy_total += accuracy
+            auc_total += auc
+        print("Epoch: {},  Loss: {:.3f},  Accuracy: {:.3f},  AUC: {:.3f}"
+              .format(epoch, loss_total/(i+1), accuracy_total/(i+1),
+                      auc_total/(i+1)))
+    print("Saved model at", save_file)
 
     # Save figure of loss, accuracy, auc graph
-    event_dir = train_writer.get_logdir()
-    event_file = ""
-
-    for (path, names, files) in os.walk(event_dir):
-        event_file = event_dir+'/'+files[0]
-        break
-
-    print(event_file)
+    event_filename = os.listdir(logdir)[0]
+    event_file = os.path.join(logdir, event_filename)
     result = []
-
-    for e in tf.train.summary_iterator(event_file):
+    for event in tf.train.summary_iterator(event_file):
         value_set = []
         is_result = False
-        for v in e.summary.value:
+        for v in event.summary.value:
             if v.tag == 'loss' or v.tag == 'accuracy_1' or v.tag == 'auc_1':
                 value_set.append(v.simple_value)
                 is_result = True
@@ -119,25 +142,25 @@ with tf.Session() as sess:
             result.append(value_set)
 
     result = np.array(result)
-    print(result)
+
     e = np.arange(0.0, args.epochs, 1.0)
     plt.figure()
     plt.plot(e, result[:, 0])
-    plt.xlabel('epoch')
+    plt.xlabel('Epoch')
     plt.ylabel('loss')
     plt.title('Loss per epoch')
-    plt.savefig(save_dir+'/train/loss.png')
+    plt.savefig(logdir + '/loss.png')
 
     plt.figure()
     plt.plot(e, result[:, 1])
-    plt.xlabel('epoch')
-    plt.ylabel('accuracy')
+    plt.xlabel('Epoch')
+    plt.ylabel('Accuracy')
     plt.title('Accuracy per epoch')
-    plt.savefig(save_dir+'/train/accuracy.png')
+    plt.savefig(logdir + '/accuracy.png')
 
     plt.figure()
     plt.plot(e, result[:, 2])
-    plt.xlabel('epoch')
-    plt.ylabel('auc')
+    plt.xlabel('Epoch')
+    plt.ylabel('AUC')
     plt.title('AUC per epoch')
-    plt.savefig(save_dir+'/train/auc.png')
+    plt.savefig(logdir + '/auc.png')
