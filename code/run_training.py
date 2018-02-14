@@ -11,6 +11,7 @@ import matplotlib
 matplotlib.use('agg')
 import matplotlib.pyplot as plt
 
+
 START_TIME = strftime('%Y%m%d-%H%M', gmtime())
 
 parser = ArgumentParser(description='Train LstmModel.',
@@ -65,17 +66,18 @@ print('Experiment started at', START_TIME)
 print("Building model...")
 Model.build_graph(n_hidden_units=200, learning_rate=args.learn_rate,
                   decay_exp=args.decay)
+print("Model built!")
 
 save_dir = os.path.join(args.model_dir, args.name)
 os.mkdir(save_dir)
-
-print("Model built!")
-
 train_saver = tf.train.Saver()
+valid_saver = tf.train.Saver()
+
 with tf.Session() as sess:
     merged = tf.summary.merge_all()
-    logdir = os.path.join(save_dir, 'train')
-    train_writer = tf.summary.FileWriter(logdir, graph=sess.graph)
+    train_writer = tf.summary.FileWriter(save_dir+'/train', graph=sess.graph)
+    valid_writer = tf.summary.FileWriter(save_dir+'/valid', graph=sess.graph)
+
     sess.run(tf.global_variables_initializer())
     sess.run(tf.local_variables_initializer())  # required for metrics
 
@@ -99,7 +101,7 @@ with tf.Session() as sess:
             loss_total += loss
             accuracy_total += accuracy
             auc_total += auc
-        print("Epoch: {},  Loss: {:.3f},  Accuracy: {:.3f},  AUC: {:.3f}"
+        print("Epoch {},  Loss: {:.3f},  Accuracy: {:.3f},  AUC: {:.3f} (train)"
               .format(epoch, loss_total/(i+1), accuracy_total/(i+1),
                       auc_total/(i+1)))
         train_writer.add_summary(summary, epoch)
@@ -121,46 +123,52 @@ with tf.Session() as sess:
             loss_total += loss
             accuracy_total += accuracy
             auc_total += auc
-        print("Epoch: {},  Loss: {:.3f},  Accuracy: {:.3f},  AUC: {:.3f}"
+        print("Epoch {},  Loss: {:.3f},  Accuracy: {:.3f},  AUC: {:.3f} (valid)"
               .format(epoch, loss_total/(i+1), accuracy_total/(i+1),
                       auc_total/(i+1)))
+        valid_writer.add_summary(summary, epoch)
     print("Saved model at", save_file)
 
     # Save figure of loss, accuracy, auc graph
-    event_filename = os.listdir(logdir)[0]
-    event_file = os.path.join(logdir, event_filename)
     result = []
-    for event in tf.train.summary_iterator(event_file):
-        value_set = []
-        is_result = False
-        for v in event.summary.value:
-            if v.tag == 'loss' or v.tag == 'accuracy_1' or v.tag == 'auc_1':
-                value_set.append(v.simple_value)
-                is_result = True
-
-        if is_result:
-            result.append(value_set)
+    for dataset in ('train', 'valid'):
+        path = os.path.join(save_dir, dataset)
+        event_filename = os.listdir(path)[0]
+        event_file = os.path.join(path, event_filename)
+        for event in tf.train.summary_iterator(event_file):
+            value_set = []
+            is_result = False
+            for v in event.summary.value:
+                if v.tag == 'loss' or v.tag == 'accuracy_1' or v.tag == 'auc_1':
+                    value_set.append(v.simple_value)
+                    is_result = True
+            if is_result:
+                result.append(value_set)
 
     result = np.array(result)
+    np.save(save_dir + '/results-' + START_TIME, result)
 
-    e = np.arange(0.0, args.epochs, 1.0)
+    e = np.arange(1, args.epochs+1)
     plt.figure()
     plt.plot(e, result[:, 0])
+    plt.plot(e, result[:, 3])
     plt.xlabel('Epoch')
     plt.ylabel('loss')
     plt.title('Loss per epoch')
-    plt.savefig(logdir + '/loss.png')
+    plt.savefig(save_dir + '/loss.png')
 
     plt.figure()
     plt.plot(e, result[:, 1])
+    plt.plot(e, result[:, 4])
     plt.xlabel('Epoch')
     plt.ylabel('Accuracy')
     plt.title('Accuracy per epoch')
-    plt.savefig(logdir + '/accuracy.png')
+    plt.savefig(save_dir + '/accuracy.png')
 
     plt.figure()
     plt.plot(e, result[:, 2])
+    plt.plot(e, result[:, 5])
     plt.xlabel('Epoch')
     plt.ylabel('AUC')
     plt.title('AUC per epoch')
-    plt.savefig(logdir + '/auc.png')
+    plt.savefig(save_dir + '/auc.png')
