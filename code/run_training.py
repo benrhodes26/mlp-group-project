@@ -74,11 +74,6 @@ def GetDataSet(args):
         batch_size=args.batch, use_plus_minus_feats=args.use_plus_minus_feats,
         use_compressed_sensing=args.compressed_sensing)
 
-    training_set_before_split = ASSISTDataProvider(
-        args.data_dir, which_set=args.which_set, which_year=args.which_year,
-        batch_size=args.batch, use_plus_minus_feats=args.use_plus_minus_feats,
-        use_compressed_sensing=args.compressed_sensing)
-
     max_time_steps = training_set_before_split.max_num_ans
     feature_len = training_set_before_split.encoding_dim
     n_distinct_questions = training_set_before_split.max_prob_set_id
