@@ -63,16 +63,7 @@ class DataSet(object):
 
 
 def GetDataSet(args):
-    # Getting Data from DataProvider
-    TrainingSet = ASSISTDataProvider(
-        args.data_dir,
-        batch_size=args.batch,
-        which_year='15')
-
-    training_set_before_split = ASSISTDataProvider(
-        args.data_dir, which_set=args.which_set, which_year=args.which_year,
-        batch_size=args.batch, use_plus_minus_feats=args.use_plus_minus_feats,
-        use_compressed_sensing=args.compressed_sensing)
+    "Getting training and validation DataProviders."
 
     training_set_before_split = ASSISTDataProvider(
         args.data_dir, which_set=args.which_set, which_year=args.which_year,
