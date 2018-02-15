@@ -138,9 +138,19 @@ class DataProvider(object):
 class ASSISTDataProvider(DataProvider):
     """Data provider for ASSISTments 2009/2015 student assessment data set."""
 
-    def __init__(self, data_dir, which_set='train', which_year='09', fraction=1,
-                 use_plus_minus_feats=False, use_compressed_sensing=False,
-                 batch_size=100, max_num_batches=-1, shuffle_order=True, rng=None, data=None):
+    def __init__(
+            self,
+            data_dir,
+            which_set='train',
+            which_year='09',
+            fraction=1,
+            use_plus_minus_feats=False,
+            use_compressed_sensing=False,
+            batch_size=100,
+            max_num_batches=-1,
+            shuffle_order=True,
+            rng=None,
+            data=None):
         """Create a new ASSISTments data provider object.
 
         Args:
@@ -164,7 +174,8 @@ class ASSISTDataProvider(DataProvider):
                 loading from file
         """
         expanded_data_dir = os.path.expanduser(data_dir)
-        data_path = os.path.join(expanded_data_dir, 'assist{0}-{1}'.format(which_year, which_set))
+        data_path = os.path.join(
+            expanded_data_dir, 'assist{0}-{1}'.format(which_year, which_set))
         self._validate_inputs(which_set, which_year, data_path)
         self.which_set = which_set
         self.which_year = which_year
@@ -183,7 +194,8 @@ class ASSISTDataProvider(DataProvider):
                 self.load_data(data_path, use_plus_minus_feats)
             if use_compressed_sensing:
                 inputs = self.compress(inputs, rng)
-            inputs, targets = self.reduce_data(inputs, target_ids, targets, fraction)
+            inputs, targets = self.reduce_data(
+                inputs, target_ids, targets, fraction)
         # pass the loaded data to the parent class __init__
         super(ASSISTDataProvider, self).__init__(
             inputs, targets, batch_size, max_num_batches, shuffle_order, rng)
@@ -207,7 +219,7 @@ class ASSISTDataProvider(DataProvider):
         self.target_ids = target_ids[:num_data]
         return inputs, targets
 
-    def load_data(self, data_path,use_plus_minus_feats):
+    def load_data(self, data_path, use_plus_minus_feats):
         """ Load data from files, optionally reducing and/or compressing"""
         loaded = np.load(data_path + '-targets.npz')
         self.max_num_ans = int(loaded['max_num_ans'])
@@ -249,14 +261,18 @@ class ASSISTDataProvider(DataProvider):
         # extract one-hot encoded feature vectors and reshape them
         # so we can feed them to the RNN
         batch_inputs = inputs_batch.toarray()
-        batch_inputs = batch_inputs.reshape(self.batch_size, self.max_num_ans, self.encoding_dim)
+        batch_inputs = batch_inputs.reshape(
+            self.batch_size, self.max_num_ans, self.encoding_dim)
         # targets_batch is a list of lists, which we need to flatten
         batch_targets = [i for sublist in targets_batch for i in sublist]
         batch_targets = np.array(batch_targets, dtype=np.float32)
         # during learning, the data for each student in a batch gets shuffled together.
-        # hence, we need a vector of indices to locate their predictions after learning
+        # hence, we need a vector of indices to locate their predictions after
+        # learning
         batch_target_ids = target_ids_batch.toarray()
-        batch_target_ids = np.array(batch_target_ids.reshape(-1), dtype=np.int32)
+        batch_target_ids = np.array(
+            batch_target_ids.reshape(-1),
+            dtype=np.int32)
 
         return batch_inputs, batch_target_ids, batch_targets
 
@@ -275,7 +291,7 @@ class ASSISTDataProvider(DataProvider):
         self._current_order = self._current_order[perm]
         self.inputs = self.inputs[perm]
         self.targets = self.targets[perm]
-        self.target_ids = self.target_ids[perm  ]
+        self.target_ids = self.target_ids[perm]
 
     def get_k_folds(self, k):
         """ Returns k pairs of DataProviders: (train_data_provider, val_data_provider)
@@ -296,28 +312,54 @@ class ASSISTDataProvider(DataProvider):
             targets_train, targets_val = targets[train_index], targets[val_index]
             target_ids_train, targets_ids_val = target_ids[train_index], target_ids[val_index]
 
-            train_data = {'inputs': inputs_train, 'targets': targets_train, 'target_ids': target_ids_train,
-                          'max_num_ans': self.max_num_ans, 'max_prob_set_id': self.max_prob_set_id,
-                          'encoding_dim': self.encoding_dim}
-            val_data = {'inputs': inputs_val, 'targets': targets_val, 'target_ids': targets_ids_val,
-                        'max_num_ans': self.max_num_ans, 'max_prob_set_id': self.max_prob_set_id,
-                        'encoding_dim': self.encoding_dim}
+            train_data = {
+                'inputs': inputs_train,
+                'targets': targets_train,
+                'target_ids': target_ids_train,
+                'max_num_ans': self.max_num_ans,
+                'max_prob_set_id': self.max_prob_set_id,
+                'encoding_dim': self.encoding_dim}
+            val_data = {
+                'inputs': inputs_val,
+                'targets': targets_val,
+                'target_ids': targets_ids_val,
+                'max_num_ans': self.max_num_ans,
+                'max_prob_set_id': self.max_prob_set_id,
+                'encoding_dim': self.encoding_dim}
 
-            train_dp = ASSISTDataProvider(data_dir=self.data_dir, which_set=self.which_set,
-                                          which_year=self.which_year, fraction=self.fraction,
-                                          use_plus_minus_feats=self.use_plus_minus_feats,
-                                          use_compressed_sensing=self.use_compressed_sensing,
-                                          batch_size=self.batch_size, max_num_batches=self.max_num_batches,
-                                          shuffle_order=self.shuffle_order,
-                                          rng=self.rng, data=train_data)
-            val_dp = ASSISTDataProvider(data_dir=self.data_dir, which_set=self.which_set,
-                                        which_year=self.which_year, fraction=self.fraction,
-                                        use_plus_minus_feats=self.use_plus_minus_feats,
-                                        use_compressed_sensing=self.use_compressed_sensing,
-                                        batch_size=self.batch_size, max_num_batches=self.max_num_batches,
-                                        shuffle_order=self.shuffle_order,
-                                        rng=self.rng, data=val_data)
+            train_dp = ASSISTDataProvider(
+                data_dir=self.data_dir,
+                which_set=self.which_set,
+                which_year=self.which_year,
+                fraction=self.fraction,
+                use_plus_minus_feats=self.use_plus_minus_feats,
+                use_compressed_sensing=self.use_compressed_sensing,
+                batch_size=self.batch_size,
+                max_num_batches=self.max_num_batches,
+                shuffle_order=self.shuffle_order,
+                rng=self.rng,
+                data=train_data)
+            val_dp = ASSISTDataProvider(
+                data_dir=self.data_dir,
+                which_set=self.which_set,
+                which_year=self.which_year,
+                fraction=self.fraction,
+                use_plus_minus_feats=self.use_plus_minus_feats,
+                use_compressed_sensing=self.use_compressed_sensing,
+                batch_size=self.batch_size,
+                max_num_batches=self.max_num_batches,
+                shuffle_order=self.shuffle_order,
+                rng=self.rng,
+                data=val_data)
             yield (train_dp, val_dp)
+
+    def train_validation_split():
+        """Return 2 data providers with 80/20 data split."""
+        for train, validation in self.get_k_folds(5):
+            train_provider = train
+            validation_provider = validation
+            break
+        return train_provider, validation_provider
 
     def _validate_inputs(self, which_set, which_year, data_path):
         assert which_set in ['train', 'test'], (

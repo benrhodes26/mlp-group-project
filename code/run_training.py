@@ -1,6 +1,6 @@
 from data_provider import ASSISTDataProvider
 from LstmModel import LstmModel
-from utils import get_events_file, events_to_numpy
+from utils import get_events_filepath, events_to_numpy
 
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from time import gmtime, strftime
@@ -44,24 +44,18 @@ parser.add_argument('--model_dir', type=str, default='.',
                     help='Path to directory where model will be saved')
 args = parser.parse_args()
 
-training_set_before_split = ASSISTDataProvider(
+data_provider = ASSISTDataProvider(
     args.data_dir,
     which_set=args.which_set,
     which_year=args.which_year,
     batch_size=args.batch,
     use_plus_minus_feats=args.use_plus_minus_feats,
     use_compressed_sensing=args.compressed_sensing)
+train_set, val_set = data_provider.train_validation_split()
 
-max_time_steps = training_set_before_split.max_num_ans
-feature_len = training_set_before_split.encoding_dim
-n_distinct_questions = training_set_before_split.max_prob_set_id
-
-for train, val in training_set_before_split.get_k_folds(5):
-    train_set, val_set = train, val
-    break
-
-Model = LstmModel(max_time_steps=max_time_steps, feature_len=feature_len,
-                  n_distinct_questions=n_distinct_questions)
+Model = LstmModel(max_time_steps=train_set.max_num_ans,
+                  feature_len=train_set.encoding_dims,
+                  n_distinct_questions=train_set.max_prob_set_id)
 
 print('Experiment started at', START_TIME)
 print("Building model...")
@@ -131,15 +125,15 @@ with tf.Session() as sess:
     print("Saved model at", save_file)
 
     # Get and save loss, accuracy, and auc metrics
-    events_file_train = get_events_file(save_dir, 'train')
+    events_file_train = get_events_filepath(save_dir, 'train')
     metrics_train = events_to_numpy(events_file_train)
     np.save(os.path.join(save_dir, 'metrics_train'), metrics_train)
 
-    events_file_valid = get_events_file(save_dir, 'valid')
+    events_file_valid = get_events_filepath(save_dir, 'valid')
     metrics_valid = events_to_numpy(events_file_valid)
     np.save(os.path.join(save_dir, 'metrics_valid'), metrics_valid)
 
-    e = np.arange(0, args.epochs+1)
+    e = np.arange(1, args.epochs+1)
     plt.figure()
     plt.plot(e, metrics_train[0])
     plt.plot(e, metrics_valid[0])
