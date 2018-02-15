@@ -20,10 +20,10 @@ parser = ArgumentParser(description='Train LstmModel.',
 parser.add_argument('--data_dir', type=str,
                     default='~/Dropbox/mlp-group-project/',
                     help='Path to directory containing data')
-parser.add_argument('--which_set', type=str,
-                    default='train', help='Either train or test')
-parser.add_argument('--which_year', type=str,
-                    default='15', help='Year of ASSIST data. Either 09 or 15')
+parser.add_argument('--which_set', type=str, default='train',
+                    help='Either train or test')
+parser.add_argument('--which_year', type=str, default='15',
+                    help='Year of ASSIST data. Either 09 or 15')
 parser.add_argument('--restore', default=None,
                     help='Path to .ckpt file of model to continue training')
 parser.add_argument('--learn_rate',  type=float, default=0.01,
@@ -34,6 +34,8 @@ parser.add_argument('--epochs', type=int, default=20,
                     help='Number of training epochs')
 parser.add_argument('--decay', type=float, default=0.98,
                     help='Fraction to decay learning rate every 100 batches')
+parser.add_argument('--keep_prob', type=float, default=1.0,
+                    help='Fraction to keep in dropout applied to LSTM cell')
 parser.add_argument('--use_plus_minus_feats', type=bool, default=False,
                     help='Whether or not to use +/-1s for feature encoding')
 parser.add_argument('--compressed_sensing', type=bool, default=False,
@@ -95,7 +97,8 @@ with tf.Session() as sess:
                 [Model.training, Model.loss, Model.accuracy, Model.auc, merged],
                 feed_dict={Model.inputs: inputs,
                            Model.targets: targets,
-                           Model.target_ids: target_ids})
+                           Model.target_ids: target_ids,
+                           Model.keep_prob: float(args.keep_prob)})
 
             loss_total += loss
             accuracy_total += accuracy
@@ -118,7 +121,8 @@ with tf.Session() as sess:
                 [Model.loss, Model.accuracy, Model.auc, merged],
                 feed_dict={Model.inputs: inputs,
                            Model.targets: targets,
-                           Model.target_ids: target_ids})
+                           Model.target_ids: target_ids,
+                           Model.keep_prob: 1.0})
             loss_total += loss
             accuracy_total += accuracy
             auc_total += auc

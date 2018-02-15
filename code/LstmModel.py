@@ -13,16 +13,15 @@ class LstmModel:
         self.feature_len = feature_len
         self.n_distinct_questions = n_distinct_questions
 
-    def build_graph(self, n_hidden_layers=1, n_hidden_units=200, keep_prob=1.0,
+    def build_graph(self, n_hidden_layers=1, n_hidden_units=200,
                     learning_rate=0.01, clip_norm=20.0, decay_exp=None):
         self._build_model(n_hidden_layers=n_hidden_layers,
-                          n_hidden_units=n_hidden_units, keep_prob=keep_prob)
+                          n_hidden_units=n_hidden_units)
         self._build_training(learning_rate=learning_rate, decay_exp=decay_exp,
                              clip_norm=clip_norm)
         self._build_metrics()
 
-    def _build_model(self, n_hidden_layers=1, n_hidden_units=200,
-                     keep_prob=1.0):
+    def _build_model(self, n_hidden_layers=1, n_hidden_units=200):
         """Build a TensorFlow computational graph for an LSTM network.
 
         Model based on "DKT paper" (see section 3):
@@ -61,10 +60,12 @@ class LstmModel:
                                          shape=[None],
                                          name='target_ids')
 
+        self.keep_prob = tf.placeholder_with_default(1.0, shape=(),
+                                                     name='keep_prob')
+
         # model. LSTM layer(s) then linear layer (softmax applied in loss)
         cell = tf.nn.rnn_cell.BasicLSTMCell(n_hidden_units)
-        if keep_prob < 1:
-            cell = tf.nn.rnn_cell.DropoutWrapper(cell, keep_prob)
+        cell = tf.nn.rnn_cell.DropoutWrapper(cell, self.keep_prob)
         if n_hidden_layers > 1:
             cells = [cell for layer in n_hidden_layers]
             cell = tf.nn.rnn_cell.MultiRNNCell(cells)
