@@ -135,7 +135,7 @@ with tf.Session() as sess:
     np.save(os.path.join(SAVE_DIR, 'metrics_valid'), metrics_valid)
 
     # plot metrics
-    e = np.arange(1, args.epochs+1)
+    e = np.arange(0, args.epochs+1)
     plt.figure()
     plt.plot(e, metrics_train[0])
     plt.plot(e, metrics_valid[0])
