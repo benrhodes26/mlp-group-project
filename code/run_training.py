@@ -57,7 +57,7 @@ data_provider = ASSISTDataProvider(
 train_set, val_set = data_provider.train_validation_split()
 
 Model = LstmModel(max_time_steps=train_set.max_num_ans,
-                  feature_len=train_set.encoding_dims,
+                  feature_len=train_set.encoding_dim,
                   n_distinct_questions=train_set.max_prob_set_id)
 
 print('Experiment started at', START_TIME)
