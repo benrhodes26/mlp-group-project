@@ -14,8 +14,6 @@ import matplotlib.pyplot as plt
 
 
 START_TIME = strftime('%Y%m%d-%H%M', gmtime())
-SAVE_DIR = os.path.join(args.model_dir, args.name)
-os.mkdir(SAVE_DIR)
 
 parser = ArgumentParser(description='Train LstmModel.',
                         formatter_class=ArgumentDefaultsHelpFormatter)
@@ -45,6 +43,9 @@ parser.add_argument('--name', type=str, default=START_TIME,
 parser.add_argument('--model_dir', type=str, default='.',
                     help='Path to directory where model will be saved')
 args = parser.parse_args()
+
+SAVE_DIR = os.path.join(args.model_dir, args.name)
+os.mkdir(SAVE_DIR)
 
 data_provider = ASSISTDataProvider(
     args.data_dir,
