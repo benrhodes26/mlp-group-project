@@ -353,7 +353,7 @@ class ASSISTDataProvider(DataProvider):
                 data=val_data)
             yield (train_dp, val_dp)
 
-    def train_validation_split():
+    def train_validation_split(self):
         """Return 2 data providers with 80/20 data split."""
         for train, validation in self.get_k_folds(5):
             train_provider = train
