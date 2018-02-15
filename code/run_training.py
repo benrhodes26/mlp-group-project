@@ -38,6 +38,8 @@ parser.add_argument('--use_plus_minus_feats', type=bool, default=False,
                     help='Whether or not to use +/-1s for feature encoding')
 parser.add_argument('--compressed_sensing', type=bool, default=False,
                     help='Whether or not to use compressed sensing')
+parser.add_argument('--fraction', type=float, default=1.0,
+                    help='Fraction of data to use. Useful for hyerparam tuning')
 parser.add_argument('--name', type=str, default=START_TIME,
                     help='Name of experiment when saving model')
 parser.add_argument('--model_dir', type=str, default='.',
@@ -53,7 +55,8 @@ data_provider = ASSISTDataProvider(
     which_year=args.which_year,
     batch_size=args.batch,
     use_plus_minus_feats=args.use_plus_minus_feats,
-    use_compressed_sensing=args.compressed_sensing)
+    use_compressed_sensing=args.compressed_sensing,
+    fraction=args.fraction)
 train_set, val_set = data_provider.train_validation_split()
 
 Model = LstmModel(max_time_steps=train_set.max_num_ans,
@@ -110,8 +113,8 @@ with tf.Session() as sess:
         loss_total = 0
         accuracy_total = 0
         auc_total = 0
-        for i, (inputs, targets, target_ids), summary in enumerate(val_set):
-            loss, (accuracy, _), (auc, _) = sess.run(
+        for i, (inputs, targets, target_ids) in enumerate(val_set):
+            loss, (accuracy, _), (auc, _), summary = sess.run(
                 [Model.loss, Model.accuracy, Model.auc, Model.merged],
                 feed_dict={Model.inputs: inputs,
                            Model.targets: targets,
