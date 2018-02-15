@@ -14,6 +14,8 @@ import matplotlib.pyplot as plt
 
 
 START_TIME = strftime('%Y%m%d-%H%M', gmtime())
+SAVE_DIR = os.path.join(args.model_dir, args.name)
+os.mkdir(SAVE_DIR)
 
 parser = ArgumentParser(description='Train LstmModel.',
                         formatter_class=ArgumentDefaultsHelpFormatter)
@@ -63,15 +65,13 @@ Model.build_graph(n_hidden_units=200, learning_rate=args.learn_rate,
                   decay_exp=args.decay)
 print("Model built!")
 
-save_dir = os.path.join(args.model_dir, args.name)
-os.mkdir(save_dir)
 train_saver = tf.train.Saver()
 valid_saver = tf.train.Saver()
 
 with tf.Session() as sess:
     merged = tf.summary.merge_all()
-    train_writer = tf.summary.FileWriter(save_dir+'/train', graph=sess.graph)
-    valid_writer = tf.summary.FileWriter(save_dir+'/valid', graph=sess.graph)
+    train_writer = tf.summary.FileWriter(SAVE_DIR+'/train', graph=sess.graph)
+    valid_writer = tf.summary.FileWriter(SAVE_DIR+'/valid', graph=sess.graph)
 
     sess.run(tf.global_variables_initializer())
     sess.run(tf.local_variables_initializer())  # required for metrics
@@ -102,7 +102,7 @@ with tf.Session() as sess:
         train_writer.add_summary(summary, epoch)
 
         # save model each epoch
-        save_file = "{}/{}_{}.ckpt".format(save_dir, args.name, epoch)
+        save_file = "{}/{}_{}.ckpt".format(SAVE_DIR, args.name, epoch)
         train_saver.save(sess, save_file)
 
         # Compute metrics on validation set (no training)
@@ -122,17 +122,18 @@ with tf.Session() as sess:
               .format(epoch, loss_total/(i+1), accuracy_total/(i+1),
                       auc_total/(i+1)))
         valid_writer.add_summary(summary, epoch)
-    print("Saved model at", save_file)
+    print("Saved model at", save_file)  # training finished
 
     # Get and save loss, accuracy, and auc metrics
-    events_file_train = get_events_filepath(save_dir, 'train')
+    events_file_train = get_events_filepath(SAVE_DIR, 'train')
     metrics_train = events_to_numpy(events_file_train)
-    np.save(os.path.join(save_dir, 'metrics_train'), metrics_train)
+    np.save(os.path.join(SAVE_DIR, 'metrics_train'), metrics_train)
 
-    events_file_valid = get_events_filepath(save_dir, 'valid')
+    events_file_valid = get_events_filepath(SAVE_DIR, 'valid')
     metrics_valid = events_to_numpy(events_file_valid)
-    np.save(os.path.join(save_dir, 'metrics_valid'), metrics_valid)
+    np.save(os.path.join(SAVE_DIR, 'metrics_valid'), metrics_valid)
 
+    # plot metrics
     e = np.arange(1, args.epochs+1)
     plt.figure()
     plt.plot(e, metrics_train[0])
@@ -140,7 +141,7 @@ with tf.Session() as sess:
     plt.xlabel('Epoch')
     plt.ylabel('loss')
     plt.title('Loss per epoch')
-    plt.savefig(save_dir + '/loss.png')
+    plt.savefig(SAVE_DIR + '/loss.png')
 
     plt.figure()
     plt.plot(e, metrics_train[1])
@@ -148,7 +149,7 @@ with tf.Session() as sess:
     plt.xlabel('Epoch')
     plt.ylabel('Accuracy')
     plt.title('Accuracy per epoch')
-    plt.savefig(save_dir + '/accuracy.png')
+    plt.savefig(SAVE_DIR + '/accuracy.png')
 
     plt.figure()
     plt.plot(e, metrics_train[2])
@@ -156,4 +157,4 @@ with tf.Session() as sess:
     plt.xlabel('Epoch')
     plt.ylabel('AUC')
     plt.title('AUC per epoch')
-    plt.savefig(save_dir + '/auc.png')
+    plt.savefig(SAVE_DIR + '/auc.png')
