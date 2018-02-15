@@ -1,5 +1,6 @@
 from data_provider import ASSISTDataProvider
 from LstmModel import LstmModel
+from utils import get_events_file, events_to_numpy
 
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from time import gmtime, strftime
@@ -129,45 +130,35 @@ with tf.Session() as sess:
         valid_writer.add_summary(summary, epoch)
     print("Saved model at", save_file)
 
-    # Save figure of loss, accuracy, auc graph
-    result = []
-    for dataset in ('train', 'valid'):
-        path = os.path.join(save_dir, dataset)
-        event_filename = os.listdir(path)[0]
-        event_file = os.path.join(path, event_filename)
-        for event in tf.train.summary_iterator(event_file):
-            value_set = []
-            is_result = False
-            for v in event.summary.value:
-                if v.tag == 'loss' or v.tag == 'accuracy_1' or v.tag == 'auc_1':
-                    value_set.append(v.simple_value)
-                    is_result = True
-            if is_result:
-                result.append(value_set)
+    # Get and save loss, accuracy, and auc metrics
+    events_file_train = get_events_file(save_dir, 'train')
+    metrics_train = events_to_numpy(events_file_train)
+    np.save(os.path.join(save_dir, 'metrics_train'), metrics_train)
 
-    result = np.array(result)
-    np.save(save_dir + '/results-' + START_TIME, result)
+    events_file_valid = get_events_file(save_dir, 'valid')
+    metrics_valid = events_to_numpy(events_file_valid)
+    np.save(os.path.join(save_dir, 'metrics_valid'), metrics_valid)
 
-    e = np.arange(1, args.epochs+1)
+    e = np.arange(0, args.epochs+1)
     plt.figure()
-    plt.plot(e, result[:, 0])
-    plt.plot(e, result[:, 3])
+    plt.plot(e, metrics_train[0])
+    plt.plot(e, metrics_valid[0])
     plt.xlabel('Epoch')
     plt.ylabel('loss')
     plt.title('Loss per epoch')
     plt.savefig(save_dir + '/loss.png')
 
     plt.figure()
-    plt.plot(e, result[:, 1])
-    plt.plot(e, result[:, 4])
+    plt.plot(e, metrics_train[1])
+    plt.plot(e, metrics_valid[1])
     plt.xlabel('Epoch')
     plt.ylabel('Accuracy')
     plt.title('Accuracy per epoch')
     plt.savefig(save_dir + '/accuracy.png')
 
     plt.figure()
-    plt.plot(e, result[:, 2])
-    plt.plot(e, result[:, 5])
+    plt.plot(e, metrics_train[2])
+    plt.plot(e, metrics_valid[2])
     plt.xlabel('Epoch')
     plt.ylabel('AUC')
     plt.title('AUC per epoch')
