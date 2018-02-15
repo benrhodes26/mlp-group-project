@@ -110,9 +110,9 @@ with tf.Session() as sess:
         loss_total = 0
         accuracy_total = 0
         auc_total = 0
-        for i, (inputs, targets, target_ids) in enumerate(val_set):
+        for i, (inputs, targets, target_ids), summary in enumerate(val_set):
             loss, (accuracy, _), (auc, _) = sess.run(
-                [Model.loss, Model.accuracy, Model.auc],
+                [Model.loss, Model.accuracy, Model.auc, Model.merged],
                 feed_dict={Model.inputs: inputs,
                            Model.targets: targets,
                            Model.target_ids: target_ids})
