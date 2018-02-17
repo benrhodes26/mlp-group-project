@@ -23,14 +23,14 @@ parser.add_argument('--data_dir', type=str,
 parser.add_argument('--which_set', type=str,
                     default='train', help='Either train or test')
 parser.add_argument('--which_year', type=str,
-                    default='15', help='Year of ASSIST data. Either 09 or 15')
+                    default='09', help='Year of ASSIST data. Either 09 or 15')
 parser.add_argument('--restore', default=None,
                     help='Path to .ckpt file of model to continue training')
-parser.add_argument('--learn_rate',  type=float, default=0.01,
+parser.add_argument('--learn_rate',  type=float, default=0.03,
                     help='Initial learning rate for Adam optimiser')
 parser.add_argument('--batch',  type=int, default=100,
                     help='Batch size')
-parser.add_argument('--epochs', type=int, default=20,
+parser.add_argument('--epochs', type=int, default=100,
                     help='Number of training epochs')
 parser.add_argument('--decay', type=float, default=0.98,
                     help='Fraction to decay learning rate every 100 batches')
@@ -38,7 +38,7 @@ parser.add_argument('--use_plus_minus_feats', type=bool, default=False,
                     help='Whether or not to use +/-1s for feature encoding')
 parser.add_argument('--compressed_sensing', type=bool, default=False,
                     help='Whether or not to use compressed sensing')
-parser.add_argument('--fraction', type=float, default=1.0,
+parser.add_argument('--fraction', type=float, default=0.2,
                     help='Fraction of data to use. Useful for hyerparam tuning')
 parser.add_argument('--name', type=str, default=START_TIME,
                     help='Name of experiment when saving model')
@@ -73,12 +73,14 @@ train_saver = tf.train.Saver()
 valid_saver = tf.train.Saver()
 
 with tf.Session() as sess:
-    merged = tf.summary.merge_all()
+    merged_loss = tf.summary.merge(Model.summary_loss)
+    merged_aucacc = tf.summary.merge(Model.summary_aucacc)
     train_writer = tf.summary.FileWriter(SAVE_DIR+'/train', graph=sess.graph)
     valid_writer = tf.summary.FileWriter(SAVE_DIR+'/valid', graph=sess.graph)
 
     sess.run(tf.global_variables_initializer())
-    sess.run(tf.local_variables_initializer())  # required for metrics
+    #sess.run(tf.local_variables_initializer())  # required for metrics
+    
 
     if args.restore:
         train_saver.restore(sess, tf.train.latest_checkpoint(args.restore))
@@ -87,45 +89,59 @@ with tf.Session() as sess:
     print("Starting training...")
     for epoch in range(args.epochs):
         # Train one epoch!
-        loss_total = 0
-        accuracy_total = 0
-        auc_total = 0
+
+        sess.run(Model.auc_init)
+        sess.run(Model.acc_init)
         for i, (inputs, targets, target_ids) in enumerate(train_set):
-            _, loss, (accuracy, _), (auc, _), summary = sess.run(
-                [Model.training, Model.loss, Model.accuracy, Model.auc, merged],
-                feed_dict={Model.inputs: inputs,
+            _, loss, acc_update, auc_update,summary_loss = sess.run([Model.training, Model.loss,Model.accuracy[1], Model.auc[1],merged_loss],
+              feed_dict={Model.inputs: inputs,
+                           Model.targets: targets,
+                           Model.target_ids: target_ids})      
+            
+
+        accuracy, auc, summary_aucacc= sess.run([Model.accuracy[0], Model.auc[0],merged_aucacc],
+              feed_dict={Model.inputs: inputs,
                            Model.targets: targets,
                            Model.target_ids: target_ids})
-
-            loss_total += loss
-            accuracy_total += accuracy
-            auc_total += auc
-        print("Epoch {},  Loss: {:.3f},  Accuracy: {:.3f},  AUC: {:.3f} (train)"
-              .format(epoch, loss_total/(i+1), accuracy_total/(i+1),
-                      auc_total/(i+1)))
-        train_writer.add_summary(summary, epoch)
+        print("Epoch {},  Loss: {:.3f},  Accuracy: {:.3f},  AUC: {:.3f} (train)".format(epoch, loss, accuracy, auc))
+              
+        train_writer.add_summary(summary_loss, epoch)
+        train_writer.add_summary(summary_aucacc, epoch)
 
         # save model each epoch
         save_file = "{}/{}_{}.ckpt".format(SAVE_DIR, args.name, epoch)
         train_saver.save(sess, save_file)
-
+        
+        sess.run(Model.auc_init)
+        sess.run(Model.acc_init)
+              
+              
         # Compute metrics on validation set (no training)
         loss_total = 0
         accuracy_total = 0
         auc_total = 0
+        
         for i, (inputs, targets, target_ids) in enumerate(val_set):
-            loss, (accuracy, _), (auc, _), summary = sess.run(
-                [Model.loss, Model.accuracy, Model.auc, merged],
-                feed_dict={Model.inputs: inputs,
+            
+            loss, acc_update, auc_update,summary_loss = sess.run([Model.loss,Model.accuracy[1], Model.auc[1],merged_loss],
+              feed_dict={Model.inputs: inputs,
+                           Model.targets: targets,
+                           Model.target_ids: target_ids}) 
+            
+            
+        accuracy, auc, summary_aucacc = sess.run([Model.accuracy[0], Model.auc[0], merged_aucacc],
+              feed_dict={Model.inputs: inputs,
                            Model.targets: targets,
                            Model.target_ids: target_ids})
-            loss_total += loss
-            accuracy_total += accuracy
-            auc_total += auc
         print("Epoch {},  Loss: {:.3f},  Accuracy: {:.3f},  AUC: {:.3f} (valid)"
-              .format(epoch, loss_total/(i+1), accuracy_total/(i+1),
-                      auc_total/(i+1)))
-        valid_writer.add_summary(summary, epoch)
+              .format(epoch, loss, accuracy, auc))
+        
+        valid_writer.add_summary(summary_loss, epoch)
+        valid_writer.add_summary(summary_aucacc, epoch)
+        
+    train_writer.close()
+    valid_writer.close()    
+        
     print("Saved model at", save_file)  # training finished
 
     # Get and save loss, accuracy, and auc metrics
@@ -140,25 +156,28 @@ with tf.Session() as sess:
     # plot metrics
     e = np.arange(args.epochs)
     plt.figure()
-    plt.plot(e, metrics_train[:, 0])
-    plt.plot(e, metrics_valid[:, 0])
+    train_plt,=plt.plot(e, metrics_train[:, 0])
+    valid_plt,=plt.plot(e, metrics_valid[:, 0])
+    plt.legend([train_plt, valid_plt], ['train', 'valid'])
     plt.xlabel('Epoch')
     plt.ylabel('loss')
     plt.title('Loss per epoch')
     plt.savefig(SAVE_DIR + '/loss.png')
 
     plt.figure()
-    plt.plot(e, metrics_train[:, 1])
-    plt.plot(e, metrics_valid[:, 1])
-    plt.xlabel('Epoch')
-    plt.ylabel('Accuracy')
-    plt.title('Accuracy per epoch')
-    plt.savefig(SAVE_DIR + '/accuracy.png')
-
-    plt.figure()
-    plt.plot(e, metrics_train[:, 2])
-    plt.plot(e, metrics_valid[:, 2])
+    train_plt,=plt.plot(e, metrics_train[:, 1])
+    valid_plt,=plt.plot(e, metrics_valid[:, 1])
+    plt.legend([train_plt, valid_plt], ['train', 'valid'])
     plt.xlabel('Epoch')
     plt.ylabel('AUC')
     plt.title('AUC per epoch')
     plt.savefig(SAVE_DIR + '/auc.png')
+
+    plt.figure()
+    train_plt,=plt.plot(e, metrics_train[:, 2])
+    valid_plt,=plt.plot(e, metrics_valid[:, 2])
+    plt.legend([train_plt, valid_plt], ['train', 'valid'])
+    plt.xlabel('Epoch')
+    plt.ylabel('Accuracy')
+    plt.title('Accuracy per epoch')
+    plt.savefig(SAVE_DIR + '/accuracy.png')

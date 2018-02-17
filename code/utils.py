@@ -10,12 +10,12 @@ def events_to_numpy(event_file):
         value_set = []
         is_result = False
         for v in event.summary.value:
-            if v.tag == 'loss' or v.tag == 'accuracy_1' or v.tag == 'auc_1':
+            if v.tag == 'loss' or v.tag == 'accuracy' or v.tag == 'auc_1':
                 value_set.append(v.simple_value)
                 is_result = True
         if is_result:
-            result.append(value_set)
-    return np.array(result)
+            result.extend(value_set)
+    return np.array(result).reshape(-1,3)
 
 
 def get_events_filepath(save_dir, name):
