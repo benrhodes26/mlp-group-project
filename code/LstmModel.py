@@ -121,10 +121,10 @@ class LstmModel:
         # track number of batches seen
         self.global_step = tf.Variable(0, name="global_step", trainable=False)
 
-        if decay_exp:
+        if decay_exp:  # decay every 3000 batches, roughly 2 epochs on 2015 data
             learning_rate = tf.train.exponential_decay(
                 learning_rate=learning_rate, global_step=self.global_step,
-                decay_rate=decay_exp, decay_steps=100, staircase=True)
+                decay_rate=decay_exp, decay_steps=3000, staircase=True)
 
         update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
         with tf.control_dependencies(update_ops):

@@ -32,7 +32,7 @@ parser.add_argument('--batch',  type=int, default=100,
                     help='Batch size')
 parser.add_argument('--epochs', type=int, default=100,
                     help='Number of training epochs')
-parser.add_argument('--decay', type=float, default=0.98,
+parser.add_argument('--decay', type=float, default=0.96,
                     help='Fraction to decay learning rate every 100 batches')
 parser.add_argument('--keep_prob', type=float, default=1.0,
                     help='Fraction to keep in dropout applied to LSTM cell')
