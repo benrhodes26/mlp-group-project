@@ -16,10 +16,15 @@ class LstmModel:
         self.auc_init = None
         self.summary_loss = None
         self.summary_aucacc = None
-    
-    
-    
-    def build_graph(self, n_hidden_layers=1, n_hidden_units=200, keep_prob=1.0,learning_rate=0.01, clip_norm=20.0, decay_exp=None):
+
+    def build_graph(
+            self,
+            n_hidden_layers=1,
+            n_hidden_units=200,
+            keep_prob=1.0,
+            learning_rate=0.01,
+            clip_norm=20.0,
+            decay_exp=None):
         self._build_model(n_hidden_layers=n_hidden_layers,
                           n_hidden_units=n_hidden_units)
         self._build_training(learning_rate=learning_rate, decay_exp=decay_exp,
@@ -120,35 +125,39 @@ class LstmModel:
             learning_rate = tf.train.exponential_decay(
                 learning_rate=learning_rate, global_step=self.global_step,
                 decay_rate=decay_exp, decay_steps=100, staircase=True)
-        
+
         update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
         with tf.control_dependencies(update_ops):
-        # Ensures that we execute the update_ops before performing the train_step
+            # Ensures that we execute the update_ops before performing the
+            # train_step
             optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
             grads, trainable_vars = zip(*optimizer.compute_gradients(self.loss))
-            
+
             if clip_norm:
                 # grads, _ = tf.clip_by_global_norm(grads, clip_norm)
                 grads = [tf.clip_by_norm(grad, clip_norm) for grad in grads]
 
-            self.training = optimizer.apply_gradients(zip(grads, trainable_vars),
-                                                      global_step=self.global_step)
+            self.training = optimizer.apply_gradients(
+                zip(grads, trainable_vars),
+                global_step=self.global_step)
 
     def _build_metrics(self):
         """Add ability to compute accuracy and AUC."""
         self.accuracy = tf.metrics.accuracy(labels=self.targets,
                                             predictions=self.predictions,
-                                           name = "acc")
-        
+                                            name="acc")
+
         self.auc = tf.metrics.auc(labels=self.targets,
                                   predictions=self.predictions,
-                                  name = "auc")
-        
-        self.summary_aucacc=[tf.summary.scalar('auc', self.auc[0]),tf.summary.scalar('accuracy', self.accuracy[0])]
-        
+                                  name="auc")
+
+        self.summary_aucacc = [
+            tf.summary.scalar(
+                'auc', self.auc[0]), tf.summary.scalar(
+                'accuracy', self.accuracy[0])]
+
         auc_var = tf.get_collection(tf.GraphKeys.LOCAL_VARIABLES, scope="auc")
         self.auc_init = tf.variables_initializer(var_list=auc_var)
-        
+
         acc_var = tf.get_collection(tf.GraphKeys.LOCAL_VARIABLES, scope="acc")
         self.acc_init = tf.variables_initializer(var_list=acc_var)
-        

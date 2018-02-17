@@ -67,7 +67,8 @@ Model = LstmModel(max_time_steps=train_set.max_num_ans,
 
 print('Experiment started at', START_TIME)
 print("Building model...")
-Model.build_graph(n_hidden_units=200, learning_rate=args.learn_rate,
+Model.build_graph(n_hidden_units=200,
+                  learning_rate=args.learn_rate,
                   decay_exp=args.decay)
 print("Model built!")
 
@@ -79,10 +80,7 @@ with tf.Session() as sess:
     merged_aucacc = tf.summary.merge(Model.summary_aucacc)
     train_writer = tf.summary.FileWriter(SAVE_DIR+'/train', graph=sess.graph)
     valid_writer = tf.summary.FileWriter(SAVE_DIR+'/valid', graph=sess.graph)
-
     sess.run(tf.global_variables_initializer())
-    #sess.run(tf.local_variables_initializer())  # required for metrics
-    
 
     if args.restore:
         train_saver.restore(sess, tf.train.latest_checkpoint(args.restore))
@@ -91,60 +89,64 @@ with tf.Session() as sess:
     print("Starting training...")
     for epoch in range(args.epochs):
         # Train one epoch!
-
         sess.run(Model.auc_init)
         sess.run(Model.acc_init)
         for i, (inputs, targets, target_ids) in enumerate(train_set):
-            _, loss, acc_update, auc_update,summary_loss = sess.run([Model.training, Model.loss,Model.accuracy[1], Model.auc[1],merged_loss],
-              feed_dict={Model.inputs: inputs,
+            _, loss, acc_update, auc_update, summary_loss = sess.run(
+                [Model.training, Model.loss, Model.accuracy[1], Model.auc[1],
+                 merged_loss],
+                feed_dict={Model.inputs: inputs,
                            Model.targets: targets,
                            Model.target_ids: target_ids,
                            Model.keep_prob: float(args.keep_prob)})
 
-        accuracy, auc, summary_aucacc= sess.run([Model.accuracy[0], Model.auc[0],merged_aucacc],
-              feed_dict={Model.inputs: inputs,
-                           Model.targets: targets,
-                           Model.target_ids: target_ids})
-        print("Epoch {},  Loss: {:.3f},  Accuracy: {:.3f},  AUC: {:.3f} (train)".format(epoch, loss, accuracy, auc))
-              
+        accuracy, auc, summary_aucacc = sess.run(
+            [Model.accuracy[0], Model.auc[0], merged_aucacc],
+            feed_dict={Model.inputs: inputs,
+                       Model.targets: targets,
+                       Model.target_ids: target_ids})
+        print(
+            "Epoch {},  Loss: {:.3f},  Accuracy: {:.3f},  AUC: {:.3f} (train)"
+            .format(epoch, loss, accuracy, auc))
+
         train_writer.add_summary(summary_loss, epoch)
         train_writer.add_summary(summary_aucacc, epoch)
 
         # save model each epoch
         save_file = "{}/{}_{}.ckpt".format(SAVE_DIR, args.name, epoch)
         train_saver.save(sess, save_file)
-        
+
         sess.run(Model.auc_init)
         sess.run(Model.acc_init)
-              
-              
+
         # Compute metrics on validation set (no training)
         loss_total = 0
         accuracy_total = 0
         auc_total = 0
-        
+
         for i, (inputs, targets, target_ids) in enumerate(val_set):
-            
-            loss, acc_update, auc_update,summary_loss = sess.run([Model.loss,Model.accuracy[1], Model.auc[1],merged_loss],
-              feed_dict={Model.inputs: inputs,
-                           Model.targets: targets,
-                           Model.target_ids: target_ids}) 
-            
-            
-        accuracy, auc, summary_aucacc = sess.run([Model.accuracy[0], Model.auc[0], merged_aucacc],
-              feed_dict={Model.inputs: inputs,
-                           Model.targets: targets,
-                           Model.target_ids: target_ids,
-                           Model.keep_prob: 1.0})
+            loss, acc_update, auc_update, summary_loss = sess.run(
+                [Model.loss, Model.accuracy[1], Model.auc[1], merged_loss],
+                feed_dict={
+                    Model.inputs: inputs,
+                    Model.targets: targets,
+                    Model.target_ids: target_ids})
+
+        accuracy, auc, summary_aucacc = sess.run(
+            [Model.accuracy[0], Model.auc[0], merged_aucacc],
+            feed_dict={Model.inputs: inputs,
+                       Model.targets: targets,
+                       Model.target_ids: target_ids,
+                       Model.keep_prob: 1.0})
         print("Epoch {},  Loss: {:.3f},  Accuracy: {:.3f},  AUC: {:.3f} (valid)"
               .format(epoch, loss, accuracy, auc))
-        
+
         valid_writer.add_summary(summary_loss, epoch)
         valid_writer.add_summary(summary_aucacc, epoch)
-        
+
     train_writer.close()
-    valid_writer.close()    
-        
+    valid_writer.close()
+
     print("Saved model at", save_file)  # training finished
 
     # Get and save loss, accuracy, and auc metrics
@@ -159,8 +161,8 @@ with tf.Session() as sess:
     # plot metrics
     e = np.arange(args.epochs)
     plt.figure()
-    train_plt,=plt.plot(e, metrics_train[:, 0])
-    valid_plt,=plt.plot(e, metrics_valid[:, 0])
+    train_plt, = plt.plot(e, metrics_train[:, 0])
+    valid_plt, = plt.plot(e, metrics_valid[:, 0])
     plt.legend([train_plt, valid_plt], ['train', 'valid'])
     plt.xlabel('Epoch')
     plt.ylabel('loss')
@@ -168,8 +170,8 @@ with tf.Session() as sess:
     plt.savefig(SAVE_DIR + '/loss.png')
 
     plt.figure()
-    train_plt,=plt.plot(e, metrics_train[:, 1])
-    valid_plt,=plt.plot(e, metrics_valid[:, 1])
+    train_plt, = plt.plot(e, metrics_train[:, 1])
+    valid_plt, = plt.plot(e, metrics_valid[:, 1])
     plt.legend([train_plt, valid_plt], ['train', 'valid'])
     plt.xlabel('Epoch')
     plt.ylabel('AUC')
@@ -177,8 +179,8 @@ with tf.Session() as sess:
     plt.savefig(SAVE_DIR + '/auc.png')
 
     plt.figure()
-    train_plt,=plt.plot(e, metrics_train[:, 2])
-    valid_plt,=plt.plot(e, metrics_valid[:, 2])
+    train_plt, = plt.plot(e, metrics_train[:, 2])
+    valid_plt, = plt.plot(e, metrics_valid[:, 2])
     plt.legend([train_plt, valid_plt], ['train', 'valid'])
     plt.xlabel('Epoch')
     plt.ylabel('Accuracy')
