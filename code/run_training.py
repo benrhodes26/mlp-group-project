@@ -40,7 +40,7 @@ parser.add_argument('--use_plus_minus_feats', type=bool, default=False,
                     help='Whether or not to use +/-1s for feature encoding')
 parser.add_argument('--compressed_sensing', type=bool, default=False,
                     help='Whether or not to use compressed sensing')
-parser.add_argument('--fraction', type=float, default=0.2,
+parser.add_argument('--fraction', type=float, default=1.0,
                     help='Fraction of data to use. Useful for hyerparam tuning')
 parser.add_argument('--name', type=str, default=START_TIME,
                     help='Name of experiment when saving model')
