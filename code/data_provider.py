@@ -150,7 +150,7 @@ class ASSISTDataProvider(DataProvider):
             max_num_batches=-1,
             shuffle_order=True,
             rng=None,
-            data=None):
+            data_dict=None):
         """Create a new ASSISTments data provider object.
 
         Args:
@@ -162,7 +162,8 @@ class ASSISTDataProvider(DataProvider):
                 of the final dimension of inputs. This new encoding
                 uses a +/-1 hot vector of size max_prob_set_id + 1, instead
                 of a 1 hot vector of size 2*max_prob_set_id + 1.
-            use_compressed_sensing:
+            use_compressed_sensing: transform the input data such that the
+            final dimension of inputs is much smaller.
             batch_size (int): Number of data points to include in each batch.
             max_num_batches (int): Maximum number of batches to iterate over
                 in an epoch. If `max_num_batches * batch_size > num_data` then
@@ -171,7 +172,7 @@ class ASSISTDataProvider(DataProvider):
             shuffle_order (bool): Whether to randomly permute the order of
                 the data before each epoch.
             rng (RandomState): A seeded random number generator.
-            data: (inputs, target): if not None, use this data instead of
+            data_dict: (inputs, target): if not None, use this data instead of
                 loading from file
         """
         expanded_data_dir = os.path.expanduser(data_dir)
@@ -186,10 +187,10 @@ class ASSISTDataProvider(DataProvider):
         self.use_plus_minus_feats = use_plus_minus_feats
         self.use_compressed_sensing = use_compressed_sensing
 
-        if data:
-            inputs, targets, self.target_ids = data['inputs'], data['targets'], data['target_ids']
-            self.max_num_ans, self.max_prob_set_id = data['max_num_ans'], data['max_prob_set_id']
-            self.encoding_dim = data['encoding_dim']
+        if data_dict:
+            inputs, targets, self.target_ids = data_dict['inputs'], data_dict['targets'], data_dict['target_ids']
+            self.max_num_ans, self.max_prob_set_id = data_dict['max_num_ans'], data_dict['max_prob_set_id']
+            self.encoding_dim = data_dict['encoding_dim']
         else:
             inputs, target_ids, targets = \
                 self.load_data(data_path, use_plus_minus_feats)
@@ -338,7 +339,7 @@ class ASSISTDataProvider(DataProvider):
                 max_num_batches=self.max_num_batches,
                 shuffle_order=self.shuffle_order,
                 rng=self.rng,
-                data=train_data)
+                data_dict=train_data)
             val_dp = ASSISTDataProvider(
                 data_dir=self.data_dir,
                 which_set=self.which_set,
@@ -350,7 +351,7 @@ class ASSISTDataProvider(DataProvider):
                 max_num_batches=self.max_num_batches,
                 shuffle_order=self.shuffle_order,
                 rng=self.rng,
-                data=val_data)
+                data_dict=val_data)
             yield (train_dp, val_dp)
 
     def _validate_inputs(self, which_set, which_year, data_path):
