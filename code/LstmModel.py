@@ -23,14 +23,9 @@ class LstmModel:
             n_hidden_units=200,
             keep_prob=1.0,
             learning_rate=0.01,
-<<<<<<< HEAD
             clip_norm=10.0,
-            decay_exp=None):
-=======
-            clip_norm=20.0,
             decay_exp=None,
             add_gradient_noise=1e-3):
->>>>>>> 8558d39ba8a5f49e96a3c6f4d97295432dccecb5
         self._build_model(n_hidden_layers=n_hidden_layers,
                           n_hidden_units=n_hidden_units)
         self._build_training(learning_rate=learning_rate,
@@ -115,11 +110,7 @@ class LstmModel:
         self.predictions = tf.round(tf.nn.sigmoid(self.logits))
 
     def _build_training(self, learning_rate=0.001, decay_exp=None,
-<<<<<<< HEAD
-                        clip_norm=10.0):
-=======
-                        clip_norm=20.0, add_gradient_noise=1e-3):
->>>>>>> 8558d39ba8a5f49e96a3c6f4d97295432dccecb5
+                        clip_norm=10.0, add_gradient_noise=1e-3):
         """Define parameters updates.
 
         Applies exponential learning rate decay (optional). See:
