@@ -179,7 +179,7 @@ class ASSISTDataProvider(DataProvider):
         self._validate_inputs(which_set, which_year, data_path)
         self.which_set = which_set
         self.which_year = which_year
-        self.data_dir = data_dir
+        self.data_dir = expanded_data_dir
         self.num_classes = 2
         self.fraction = fraction
         self.use_plus_minus_feats = use_plus_minus_feats
@@ -192,24 +192,55 @@ class ASSISTDataProvider(DataProvider):
         else:
             inputs, target_ids, targets = \
                 self.load_data(data_path, use_plus_minus_feats)
-            if use_compressed_sensing:
-                inputs = self.compress(inputs, rng)
+
             inputs, targets = self.reduce_data(
                 inputs, target_ids, targets, fraction)
+
+            if use_compressed_sensing:
+                inputs = self.apply_compressed_sensing(inputs, rng)
+
         # pass the loaded data to the parent class __init__
         super(ASSISTDataProvider, self).__init__(
             inputs, targets, batch_size, max_num_batches, shuffle_order, rng)
 
-    def compress(self, inputs, rng):
-        num_students = inputs.shape[0]
-        compress_dim = 100  # value used in orginal DKT paper
+    def apply_compressed_sensing(self, inputs, rng):
+        """Map input features (of length 'encoding_dim') down to a randomly generated
+        vector sampled from a standard gaussian in a lower dimensional space. If this
+        is test time, load training matrix from file. If train time, make the matrix.
+        """
+        train_path = os.path.join(
+            self.data_dir, 'assist{0}-{1}'.format(self.which_year, 'train'))
+
+        if self.which_set == 'test':
+            loaded = np.load(train_path + '-compression-matrix.npz')
+            self.compress_matrix = loaded['compress_matrix']
+            self.compress_dim = self.compress_matrix.shape[1]
+        elif self.which_set == 'train':
+            self.compress_matrix = self.make_compression_matrix(train_path, rng)
+
+        inputs = self.compress_inputs(inputs)
+        return inputs
+
+    def make_compression_matrix(self, train_path, rng):
+        """Create matrix for mapping input features (of length 'encoding_dim') to
+        lower dimensional gaussian vector
+        """
+        self.compress_dim = 100  # value used in original DKT paper
         if rng:
-            compress_matrix = rng.randn(self.encoding_dim, compress_dim)
+            compress_matrix = rng.randn(self.encoding_dim, self.compress_dim)
         else:
-            compress_matrix = np.random.randn(self.encoding_dim, compress_dim)
+            compress_matrix = np.random.randn(self.encoding_dim, self.compress_dim)
+
+        np.savez(train_path + '-compression-matrix', compress_matrix=compress_matrix)
+        return compress_matrix
+
+    def compress_inputs(self, inputs):
+        """Apply compression matrix to inputs"""
+        num_students = inputs.shape[0]
         inputs = inputs.toarray()
-        inputs = np.dot(inputs.reshape(-1, self.encoding_dim), compress_matrix)
-        self.encoding_dim = compress_dim
+        inputs = np.dot(inputs.reshape(-1, self.encoding_dim), self.compress_matrix)
+        self.encoding_dim = self.compress_dim
+
         return sp.csr_matrix(inputs.reshape(num_students, -1))
 
     def reduce_data(self, inputs, target_ids, targets, fraction):
