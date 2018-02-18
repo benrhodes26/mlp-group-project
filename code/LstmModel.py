@@ -23,12 +23,20 @@ class LstmModel:
             n_hidden_units=200,
             keep_prob=1.0,
             learning_rate=0.01,
+<<<<<<< HEAD
             clip_norm=10.0,
             decay_exp=None):
+=======
+            clip_norm=20.0,
+            decay_exp=None,
+            add_gradient_noise=1e-3):
+>>>>>>> 8558d39ba8a5f49e96a3c6f4d97295432dccecb5
         self._build_model(n_hidden_layers=n_hidden_layers,
                           n_hidden_units=n_hidden_units)
-        self._build_training(learning_rate=learning_rate, decay_exp=decay_exp,
-                             clip_norm=clip_norm)
+        self._build_training(learning_rate=learning_rate,
+                             decay_exp=decay_exp,
+                             clip_norm=clip_norm,
+                             add_gradient_noise=add_gradient_noise)
         self._build_metrics()
 
     def _build_model(self, n_hidden_layers=1, n_hidden_units=200):
@@ -107,7 +115,11 @@ class LstmModel:
         self.predictions = tf.round(tf.nn.sigmoid(self.logits))
 
     def _build_training(self, learning_rate=0.001, decay_exp=None,
+<<<<<<< HEAD
                         clip_norm=10.0):
+=======
+                        clip_norm=20.0, add_gradient_noise=1e-3):
+>>>>>>> 8558d39ba8a5f49e96a3c6f4d97295432dccecb5
         """Define parameters updates.
 
         Applies exponential learning rate decay (optional). See:
@@ -140,6 +152,8 @@ class LstmModel:
             if clip_norm:
                 # grads, _ = tf.clip_by_global_norm(grads, clip_norm)
                 grads = [tf.clip_by_norm(grad, clip_norm) for grad in grads]
+            if add_gradient_noise:
+                grads = [self.add_noise(g) for g in grads]
 
             self.training = optimizer.apply_gradients(
                 zip(grads, trainable_vars),
@@ -165,3 +179,20 @@ class LstmModel:
 
         acc_var = tf.get_collection(tf.GraphKeys.LOCAL_VARIABLES, scope="acc")
         self.acc_init = tf.variables_initializer(var_list=acc_var)
+
+    def add_noise(self, t, stddev=1e-3, name=None):
+        """
+        This code taken directly from:
+            Xiong, Xiaolu, et al. "Going Deeper with Deep Knowledge Tracing."
+            EDM. 2016.
+
+        Adds gradient noise as described in http://arxiv.org/abs/1511.06807 [2].
+        The input Tensor `t` should be a gradient.
+        The output will be `t` + gaussian noise.
+        0.001 was said to be a good fixed value for memory networks [2].
+        """
+        with tf.name_scope(name, "add_gradient_noise", [t, stddev]) as name:
+            t = tf.convert_to_tensor(t, name="t")
+            gn = tf.random_normal(tf.shape(t), stddev=stddev)
+
+        return tf.add(t, gn, name=name)
