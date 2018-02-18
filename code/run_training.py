@@ -36,6 +36,8 @@ parser.add_argument('--decay', type=float, default=0.96,
                     help='Fraction to decay learning rate every 100 batches')
 parser.add_argument('--keep_prob', type=float, default=1.0,
                     help='Fraction to keep in dropout applied to LSTM cell')
+parser.add_argument('--add_gradient_noise', type=float, default=1e-3,
+                    help='add gaussian noise with stdev=1e-3 to gradients')
 parser.add_argument('--use_plus_minus_feats', type=bool, default=False,
                     help='Whether or not to use +/-1s for feature encoding')
 parser.add_argument('--compressed_sensing', type=bool, default=False,
@@ -69,7 +71,8 @@ print('Experiment started at', START_TIME)
 print("Building model...")
 Model.build_graph(n_hidden_units=200,
                   learning_rate=args.learn_rate,
-                  decay_exp=args.decay)
+                  decay_exp=args.decay,
+                  add_gradient_noise=args.add_gradient_noise)
 print("Model built!")
 
 train_saver = tf.train.Saver()
