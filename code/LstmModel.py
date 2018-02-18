@@ -77,7 +77,8 @@ class LstmModel:
         cell = tf.nn.rnn_cell.BasicLSTMCell(n_hidden_units)
         cell = tf.nn.rnn_cell.DropoutWrapper(cell,
                                              state_keep_prob=self.keep_prob,
-                                             variational_recurrent=True)
+                                             variational_recurrent=True,
+                                             dtype=tf.float32)
         if n_hidden_layers > 1:
             cells = [cell for layer in n_hidden_layers]
             cell = tf.nn.rnn_cell.MultiRNNCell(cells)
