@@ -75,7 +75,9 @@ class LstmModel:
 
         # model. LSTM layer(s) then linear layer (softmax applied in loss)
         cell = tf.nn.rnn_cell.BasicLSTMCell(n_hidden_units)
-        cell = tf.nn.rnn_cell.DropoutWrapper(cell, self.keep_prob)
+        cell = tf.nn.rnn_cell.DropoutWrapper(cell,
+                                             state_keep_prob=self.keep_prob,
+                                             variational_recurrent=True)
         if n_hidden_layers > 1:
             cells = [cell for layer in n_hidden_layers]
             cell = tf.nn.rnn_cell.MultiRNNCell(cells)
