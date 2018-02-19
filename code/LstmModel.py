@@ -76,18 +76,18 @@ class LstmModel:
         self.keep_prob = tf.placeholder_with_default(1.0, shape=(),
                                                      name='keep_prob')
 
-        # model. LSTM layer(s) then linear layer (softmax applied in loss)
-        cell = tf.nn.rnn_cell.BasicLSTMCell(n_hidden_units)
-        cell = tf.nn.rnn_cell.DropoutWrapper(cell,
-                                             output_keep_prob=self.keep_prob,
-                                             state_keep_prob=self.keep_prob,
-                                             variational_recurrent=True,
-                                             dtype=tf.float32)
-        if n_hidden_layers > 1:
-            cells = [cell for layer in n_hidden_layers]
-            cell = tf.nn.rnn_cell.MultiRNNCell(cells)
-
         with tf.variable_scope('RNN', initializer=tf.contrib.layers.xavier_initializer()):
+            # model. LSTM layer(s) then linear layer (softmax applied in loss)
+            cell = tf.nn.rnn_cell.BasicLSTMCell(n_hidden_units)
+            cell = tf.nn.rnn_cell.DropoutWrapper(cell,
+                                                 output_keep_prob=self.keep_prob,
+                                                 state_keep_prob=self.keep_prob,
+                                                 variational_recurrent=True,
+                                                 dtype=tf.float32)
+            if n_hidden_layers > 1:
+                cells = [cell for layer in n_hidden_layers]
+                cell = tf.nn.rnn_cell.MultiRNNCell(cells)
+
             self.outputs, self.state = tf.nn.dynamic_rnn(cell=cell,
                                                          inputs=self.inputs,
                                                          dtype=tf.float32)
