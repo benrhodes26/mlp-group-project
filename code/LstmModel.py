@@ -87,9 +87,10 @@ class LstmModel:
             cells = [cell for layer in n_hidden_layers]
             cell = tf.nn.rnn_cell.MultiRNNCell(cells)
 
-        self.outputs, self.state = tf.nn.dynamic_rnn(cell=cell,
-                                                     inputs=self.inputs,
-                                                     dtype=tf.float32)
+        with tf.variable_scope('RNN', initializer=tf.contrib.layers.xavier_initializer()):
+            self.outputs, self.state = tf.nn.dynamic_rnn(cell=cell,
+                                                         inputs=self.inputs,
+                                                         dtype=tf.float32)
 
         sigmoid_w = tf.get_variable(dtype=tf.float32,
                                     name="sigmoid_w",
