@@ -22,19 +22,19 @@ parser.add_argument('--data_dir', type=str,
                     help='Path to directory containing data')
 parser.add_argument('--which_set', type=str, default='train',
                     help='Either train or test')
-parser.add_argument('--which_year', type=str, default='15',
+parser.add_argument('--which_year', type=str, default='09',
                     help='Year of ASSIST data. Either 09 or 15')
 parser.add_argument('--restore', default=None,
                     help='Path to .ckpt file of model to continue training')
-parser.add_argument('--learn_rate',  type=float, default=0.03,
+parser.add_argument('--learn_rate',  type=float, default=0.01,
                     help='Initial learning rate for Adam optimiser')
 parser.add_argument('--batch',  type=int, default=100,
                     help='Batch size')
-parser.add_argument('--epochs', type=int, default=100,
+parser.add_argument('--epochs', type=int, default=0,
                     help='Number of training epochs')
 parser.add_argument('--decay', type=float, default=0.96,
                     help='Fraction to decay learning rate every 100 batches')
-parser.add_argument('--keep_prob', type=float, default=1.0,
+parser.add_argument('--keep_prob', type=float, default=0.6,
                     help='Fraction to keep in dropout applied to LSTM cell')
 parser.add_argument('--add_gradient_noise', type=float, default=1e-3,
                     help='add gaussian noise with stdev=1e-3 to gradients')
