@@ -28,7 +28,7 @@ parser.add_argument('--restore', default=None,
                     help='Path to .ckpt file of model to continue training')
 parser.add_argument('--learn_rate',  type=float, default=0.01,
                     help='Initial learning rate for Adam optimiser')
-parser.add_argument('--batch',  type=int, default=100,
+parser.add_argument('--batch',  type=int, default=32,
                     help='Batch size')
 parser.add_argument('--epochs', type=int, default=0,
                     help='Number of training epochs')

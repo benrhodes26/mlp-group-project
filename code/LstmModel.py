@@ -75,8 +75,8 @@ class LstmModel:
 
         self.keep_prob = tf.placeholder_with_default(1.0, shape=(),
                                                      name='keep_prob')
-        # with tf.variable_scope('RNN', initializer=tf.contrib.layers.xavier_initializer()):
-        with tf.variable_scope('RNN', initializer=tf.random_uniform_initializer(-0.5, 0.5)):
+        with tf.variable_scope('RNN', initializer=tf.contrib.layers.xavier_initializer()):
+            # with tf.variable_scope('RNN', initializer=tf.random_uniform_initializer(-0.5, 0.5)):
             # model. LSTM layer(s) then linear layer (softmax applied in loss)
             cell = tf.nn.rnn_cell.BasicLSTMCell(n_hidden_units)
             cell = tf.nn.rnn_cell.DropoutWrapper(cell,
