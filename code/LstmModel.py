@@ -7,11 +7,12 @@ class LstmModel:
         return "LstmModel"
 
     def __init__(self, max_time_steps=973, feature_len=293,
-                 n_distinct_questions=146):
+                 n_distinct_questions=146, var_dropout=True):
         """Initialise task-specific parameters."""
         self.max_time_steps = max_time_steps
         self.feature_len = feature_len
         self.n_distinct_questions = n_distinct_questions
+        self.var_dropout = var_dropout
         self.acc_init = None
         self.auc_init = None
         self.summary_loss = None
@@ -79,11 +80,19 @@ class LstmModel:
         # with tf.variable_scope('RNN', initializer=tf.random_uniform_initializer(-0.5, 0.5)):
             # model. LSTM layer(s) then linear layer (softmax applied in loss)
         cell = tf.nn.rnn_cell.BasicLSTMCell(n_hidden_units)
-        cell = tf.nn.rnn_cell.DropoutWrapper(cell,
-                                             output_keep_prob=self.keep_prob,
-                                             state_keep_prob=self.keep_prob,
-                                             variational_recurrent=True,
-                                             dtype=tf.float32)
+
+        if self.var_dropout:
+            cell = tf.nn.rnn_cell.DropoutWrapper(cell,
+                                                 output_keep_prob=self.keep_prob,
+                                                 state_keep_prob=self.keep_prob,
+                                                 variational_recurrent=self.var_dropout,
+                                                 dtype=tf.float32)
+        else:
+            # Only apply non-variational dropout to output connections
+            cell = tf.nn.rnn_cell.DropoutWrapper(cell,
+                                                 output_keep_prob=self.keep_prob,
+                                                 dtype=tf.float32)
+
         if n_hidden_layers > 1:
             cells = [cell for layer in n_hidden_layers]
             cell = tf.nn.rnn_cell.MultiRNNCell(cells)
