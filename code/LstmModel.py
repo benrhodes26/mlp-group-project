@@ -26,13 +26,15 @@ class LstmModel:
             learning_rate=0.01,
             clip_norm=10.0,
             decay_exp=None,
-            add_gradient_noise=1e-3):
+            add_gradient_noise=1e-3,
+            decay_step=3000):
         self._build_model(n_hidden_layers=n_hidden_layers,
                           n_hidden_units=n_hidden_units)
         self._build_training(learning_rate=learning_rate,
                              decay_exp=decay_exp,
                              clip_norm=clip_norm,
-                             add_gradient_noise=add_gradient_noise)
+                             add_gradient_noise=add_gradient_noise,
+                             decay_step=decay_step)
         self._build_metrics()
 
     def _build_model(self, n_hidden_layers=1, n_hidden_units=200):
@@ -120,7 +122,8 @@ class LstmModel:
         self.predictions = tf.round(tf.nn.sigmoid(self.logits))
 
     def _build_training(self, learning_rate=0.001, decay_exp=None,
-                        clip_norm=10.0, add_gradient_noise=1e-3):
+                        clip_norm=10.0, add_gradient_noise=1e-3,
+                        decay_step=3000):
         """Define parameters updates.
 
         Applies exponential learning rate decay (optional). See:
@@ -141,7 +144,7 @@ class LstmModel:
         if decay_exp:  # decay every 3000 batches, roughly 2 epochs on 2015 data
             learning_rate = tf.train.exponential_decay(
                 learning_rate=learning_rate, global_step=self.global_step,
-                decay_rate=decay_exp, decay_steps=3000, staircase=True)
+                decay_rate=decay_exp, decay_steps=decay_step, staircase=True)
 
         update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
         with tf.control_dependencies(update_ops):
