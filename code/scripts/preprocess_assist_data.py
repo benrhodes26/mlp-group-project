@@ -45,6 +45,7 @@ num_lines_per_student = 3
 num_students = 0
 max_num_ans = 0  # largest number of questions answered by any student
 max_prob_set_id = 0  # largest id of any problem set
+total_num_problems = 0
 student_to_prob_sets = {}
 student_to_marks = {}
 prob_set_counts = {}
@@ -67,6 +68,7 @@ with open(csv_data_path, "r") as f:
             else:
                 skip = False
                 num_students += 1
+                total_num_problems += row[0]
                 max_num_ans = max(max_num_ans, row[0])
 
         if i % num_lines_per_student == 1 and not skip:
@@ -181,5 +183,7 @@ with open('{}/unique-prob-set-counts-{}.txt'.format(data_dir, output_filename), 
 print(
     'There are {} students. \n'
     'The max number of questions answered by any student is {}. \n'
-    'The max id of a problem set is {}.'.format(num_students, max_num_ans, max_prob_set_id)
+    'The max id of a problem set is {} \n'
+    'total number of problems answered: {}'.format(num_students, max_num_ans,
+                                                    max_prob_set_id, total_num_problems)
       )
