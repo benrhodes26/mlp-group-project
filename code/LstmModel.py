@@ -7,11 +7,12 @@ class LstmModel:
         return "LstmModel"
 
     def __init__(self, max_time_steps=973, feature_len=293,
-                 n_distinct_questions=146):
+                 n_distinct_questions=146, var_dropout=True):
         """Initialise task-specific parameters."""
         self.max_time_steps = max_time_steps
         self.feature_len = feature_len
         self.n_distinct_questions = n_distinct_questions
+        self.var_dropout = var_dropout
         self.acc_init = None
         self.auc_init = None
         self.summary_loss = None
@@ -25,13 +26,15 @@ class LstmModel:
             learning_rate=0.01,
             clip_norm=10.0,
             decay_exp=None,
-            add_gradient_noise=1e-3):
+            add_gradient_noise=1e-3,
+            decay_step=3000):
         self._build_model(n_hidden_layers=n_hidden_layers,
                           n_hidden_units=n_hidden_units)
         self._build_training(learning_rate=learning_rate,
                              decay_exp=decay_exp,
                              clip_norm=clip_norm,
-                             add_gradient_noise=add_gradient_noise)
+                             add_gradient_noise=add_gradient_noise,
+                             decay_step=decay_step)
         self._build_metrics()
 
     def _build_model(self, n_hidden_layers=1, n_hidden_units=200):
@@ -79,11 +82,19 @@ class LstmModel:
         # with tf.variable_scope('RNN', initializer=tf.random_uniform_initializer(-0.5, 0.5)):
             # model. LSTM layer(s) then linear layer (softmax applied in loss)
         cell = tf.nn.rnn_cell.BasicLSTMCell(n_hidden_units)
-        cell = tf.nn.rnn_cell.DropoutWrapper(cell,
-                                             output_keep_prob=self.keep_prob,
-                                             state_keep_prob=self.keep_prob,
-                                             variational_recurrent=True,
-                                             dtype=tf.float32)
+
+        if self.var_dropout:
+            cell = tf.nn.rnn_cell.DropoutWrapper(cell,
+                                                 output_keep_prob=self.keep_prob,
+                                                 state_keep_prob=self.keep_prob,
+                                                 variational_recurrent=self.var_dropout,
+                                                 dtype=tf.float32)
+        else:
+            # Only apply non-variational dropout to output connections
+            cell = tf.nn.rnn_cell.DropoutWrapper(cell,
+                                                 output_keep_prob=self.keep_prob,
+                                                 dtype=tf.float32)
+
         if n_hidden_layers > 1:
             cells = [cell for layer in n_hidden_layers]
             cell = tf.nn.rnn_cell.MultiRNNCell(cells)
@@ -111,7 +122,8 @@ class LstmModel:
         self.predictions = tf.round(tf.nn.sigmoid(self.logits))
 
     def _build_training(self, learning_rate=0.001, decay_exp=None,
-                        clip_norm=10.0, add_gradient_noise=1e-3):
+                        clip_norm=10.0, add_gradient_noise=1e-3,
+                        decay_step=3000):
         """Define parameters updates.
 
         Applies exponential learning rate decay (optional). See:
@@ -132,7 +144,7 @@ class LstmModel:
         if decay_exp:  # decay every 3000 batches, roughly 2 epochs on 2015 data
             learning_rate = tf.train.exponential_decay(
                 learning_rate=learning_rate, global_step=self.global_step,
-                decay_rate=decay_exp, decay_steps=3000, staircase=True)
+                decay_rate=decay_exp, decay_steps=decay_step, staircase=True)
 
         update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
         with tf.control_dependencies(update_ops):

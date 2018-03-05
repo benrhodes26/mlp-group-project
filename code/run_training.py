@@ -34,18 +34,22 @@ parser.add_argument('--epochs', type=int, default=100,
                     help='Number of training epochs')
 parser.add_argument('--decay', type=float, default=0.96,
                     help='Fraction to decay learning rate every 100 batches')
+parser.add_argument('--decay_step', type=int, default=3000,
+                    help='Apply learning rate decay every x batches')
 parser.add_argument('--keep_prob', type=float, default=0.6,
                     help='Fraction to keep in dropout applied to LSTM cell')
+parser.add_argument('--var_dropout', type=bool, default=True,
+                    help='Whether or not to use variational dropout')
 parser.add_argument('--add_gradient_noise', type=float, default=1e-3,
                     help='add gaussian noise with stdev=1e-3 to gradients')
-parser.add_argument('--clip_norm', type=float, default=1,
+parser.add_argument('--clip_norm', type=float, default=20,
                     help='clip norms of gradients')
 parser.add_argument('--use_plus_minus_feats', type=bool, default=False,
                     help='Whether or not to use +/-1s for feature encoding')
 parser.add_argument('--compressed_sensing', type=bool, default=False,
                     help='Whether or not to use compressed sensing')
 parser.add_argument('--fraction', type=float, default=1.0,
-                    help='Fraction of data to use. Useful for hyerparam tuning')
+                    help='Fraction of data to use. Useful for hyperparam tuning')
 parser.add_argument('--name', type=str, default=START_TIME,
                     help='Name of experiment when saving model')
 parser.add_argument('--model_dir', type=str, default='.',
@@ -67,7 +71,8 @@ train_set, val_set = data_provider.train_validation_split()
 
 Model = LstmModel(max_time_steps=train_set.max_num_ans,
                   feature_len=train_set.encoding_dim,
-                  n_distinct_questions=train_set.max_prob_set_id)
+                  n_distinct_questions=train_set.max_prob_set_id,
+                  var_dropout=args.var_dropout)
 
 print('Experiment started at', START_TIME)
 print("Building model...")
@@ -75,7 +80,8 @@ Model.build_graph(n_hidden_units=200,
                   learning_rate=args.learn_rate,
                   decay_exp=args.decay,
                   clip_norm=args.clip_norm,
-                  add_gradient_noise=args.add_gradient_noise)
+                  add_gradient_noise=args.add_gradient_noise,
+                  decay_step=args.decay_step)
 print("Model built!")
 
 train_saver = tf.train.Saver()
