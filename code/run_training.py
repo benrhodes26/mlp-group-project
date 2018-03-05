@@ -30,7 +30,7 @@ parser.add_argument('--learn_rate',  type=float, default=0.01,
                     help='Initial learning rate for Adam optimiser')
 parser.add_argument('--batch',  type=int, default=32,
                     help='Batch size')
-parser.add_argument('--epochs', type=int, default=0,
+parser.add_argument('--epochs', type=int, default=100,
                     help='Number of training epochs')
 parser.add_argument('--decay', type=float, default=0.96,
                     help='Fraction to decay learning rate every 100 batches')
