@@ -22,7 +22,6 @@ class LstmModel:
             self,
             n_hidden_layers=1,
             n_hidden_units=200,
-            keep_prob=1.0,
             learning_rate=0.01,
             clip_norm=10.0,
             decay_exp=None,
@@ -100,8 +99,8 @@ class LstmModel:
             cell = tf.nn.rnn_cell.MultiRNNCell(cells)
 
         self.outputs, self.state = tf.nn.dynamic_rnn(cell=cell,
-                                                         inputs=self.inputs,
-                                                         dtype=tf.float32)
+                                                     inputs=self.inputs,
+                                                     dtype=tf.float32)
 
         sigmoid_w = tf.get_variable(dtype=tf.float32,
                                     name="sigmoid_w",

@@ -28,6 +28,8 @@ parser.add_argument('--restore', default=None,
                     help='Path to .ckpt file of model to continue training')
 parser.add_argument('--learn_rate',  type=float, default=0.01,
                     help='Initial learning rate for Adam optimiser')
+parser.add_argument('--num_hidden_units',  type=int, default=200,
+                    help='Number of hidden units in the LSTM cell')
 parser.add_argument('--batch',  type=int, default=32,
                     help='Batch size')
 parser.add_argument('--epochs', type=int, default=100,
@@ -76,7 +78,7 @@ Model = LstmModel(max_time_steps=train_set.max_num_ans,
 
 print('Experiment started at', START_TIME)
 print("Building model...")
-Model.build_graph(n_hidden_units=200,
+Model.build_graph(n_hidden_units=args.num_hidden_units,
                   learning_rate=args.learn_rate,
                   decay_exp=args.decay,
                   clip_norm=args.clip_norm,
