@@ -26,7 +26,7 @@ parser.add_argument('--which_year', type=str, default='09',
                     help='Year of ASSIST data. Either 09 or 15')
 parser.add_argument('--restore', default=None,
                     help='Path to .ckpt file of model to continue training')
-parser.add_argument('--learn_rate',  type=float, default=0.01,
+parser.add_argument('--learn_rate',  type=float, default=0.001,
                     help='Initial learning rate for Adam optimiser')
 parser.add_argument('--batch',  type=int, default=32,
                     help='Batch size')
@@ -68,6 +68,7 @@ data_provider = ASSISTDataProvider(
     use_compressed_sensing=args.compressed_sensing,
     fraction=args.fraction)
 train_set, val_set = data_provider.train_validation_split()
+
 
 Model = LstmModel(max_time_steps=train_set.max_num_ans,
                   feature_len=train_set.encoding_dim,
@@ -112,14 +113,14 @@ with tf.Session() as sess:
                            Model.target_ids: target_ids,
                            Model.keep_prob: float(args.keep_prob)})
 
-        accuracy, auc, summary_aucacc = sess.run(
-            [Model.accuracy[0], Model.auc[0], merged_aucacc],
-            feed_dict={Model.inputs: inputs,
-                       Model.targets: targets,
-                       Model.target_ids: target_ids})
-        print(
-            "Epoch {},  Loss: {:.3f},  Accuracy: {:.3f},  AUC: {:.3f} (train)"
-            .format(epoch, loss, accuracy, auc))
+            accuracy, auc, summary_aucacc = sess.run(
+                [Model.accuracy[0], Model.auc[0], merged_aucacc],
+                feed_dict={Model.inputs: inputs,
+                           Model.targets: targets,
+                           Model.target_ids: target_ids})
+            print(
+                "Epoch {}-{},  Loss: {:.3f},  Accuracy: {:.3f},  AUC: {:.3f} (train)"
+                .format(epoch,i, loss, accuracy, auc))
 
         train_writer.add_summary(summary_loss, epoch)
         train_writer.add_summary(summary_aucacc, epoch)
@@ -144,14 +145,14 @@ with tf.Session() as sess:
                     Model.targets: targets,
                     Model.target_ids: target_ids})
 
-        accuracy, auc, summary_aucacc = sess.run(
-            [Model.accuracy[0], Model.auc[0], merged_aucacc],
-            feed_dict={Model.inputs: inputs,
-                       Model.targets: targets,
-                       Model.target_ids: target_ids,
-                       Model.keep_prob: 1.0})
-        print("Epoch {},  Loss: {:.3f},  Accuracy: {:.3f},  AUC: {:.3f} (valid)"
-              .format(epoch, loss, accuracy, auc))
+            accuracy, auc, summary_aucacc = sess.run(
+                [Model.accuracy[0], Model.auc[0], merged_aucacc],
+                feed_dict={Model.inputs: inputs,
+                           Model.targets: targets,
+                           Model.target_ids: target_ids,
+                           Model.keep_prob: 1.0})
+            print("Epoch {}-{},  Loss: {:.3f},  Accuracy: {:.3f},  AUC: {:.3f} (valid)"
+                  .format(epoch, i,loss, accuracy, auc))
 
         valid_writer.add_summary(summary_loss, epoch)
         valid_writer.add_summary(summary_aucacc, epoch)
