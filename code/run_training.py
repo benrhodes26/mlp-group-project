@@ -28,6 +28,8 @@ parser.add_argument('--restore', default=None,
                     help='Path to .ckpt file of model to continue training')
 parser.add_argument('--learn_rate',  type=float, default=0.001,
                     help='Initial learning rate for Adam optimiser')
+parser.add_argument('--num_hidden_units',  type=int, default=200,
+                    help='Number of hidden units in the LSTM cell')
 parser.add_argument('--batch',  type=int, default=32,
                     help='Batch size')
 parser.add_argument('--epochs', type=int, default=100,
@@ -36,18 +38,27 @@ parser.add_argument('--decay', type=float, default=0.96,
                     help='Fraction to decay learning rate every 100 batches')
 parser.add_argument('--decay_step', type=int, default=3000,
                     help='Apply learning rate decay every x batches')
-parser.add_argument('--keep_prob', type=float, default=0.6,
-                    help='Fraction to keep in dropout applied to LSTM cell')
-parser.add_argument('--var_dropout', type=bool, default=True,
-                    help='Whether or not to use variational dropout')
 parser.add_argument('--add_gradient_noise', type=float, default=1e-3,
                     help='add gaussian noise with stdev=1e-3 to gradients')
 parser.add_argument('--clip_norm', type=float, default=20,
                     help='clip norms of gradients')
-parser.add_argument('--use_plus_minus_feats', type=bool, default=False,
-                    help='Whether or not to use +/-1s for feature encoding')
-parser.add_argument('--compressed_sensing', type=bool, default=False,
-                    help='Whether or not to use compressed sensing')
+parser.add_argument('--keep_prob', type=float, default=0.6,
+                    help='Fraction to keep in dropout applied to LSTM cell')
+parser.add_argument('--var_dropout', dest='var_dropout', action='store_true',
+                    help='use variational dropout')
+parser.add_argument('--no-var_dropout', dest='var_dropout', action='store_false',
+                    help='do not use variational dropout')
+parser.set_defaults(var_dropout=True)
+parser.add_argument('--plus_minus_feats', dest='plus_minus_feats', action='store_true',
+                    help='use +/- for feature encoding')
+parser.add_argument('--no-plus_minus_feats', dest='plus_minus_feats', action='store_false',
+                    help='do not use +/- for feature encoding')
+parser.set_defaults(plus_minus_feats=False)
+parser.add_argument('--compressed_sensing', dest='compressed_sensing', action='store_true',
+                    help='use compressed sensing')
+parser.add_argument('--no-compressed_sensing', dest='compressed_sensing', action='store_false',
+                    help='do not use use compressed sensing')
+parser.set_defaults(compressed_sensing=False)
 parser.add_argument('--fraction', type=float, default=1.0,
                     help='Fraction of data to use. Useful for hyperparam tuning')
 parser.add_argument('--name', type=str, default=START_TIME,
@@ -64,7 +75,7 @@ data_provider = ASSISTDataProvider(
     which_set=args.which_set,
     which_year=args.which_year,
     batch_size=args.batch,
-    use_plus_minus_feats=args.use_plus_minus_feats,
+    use_plus_minus_feats=args.plus_minus_feats,
     use_compressed_sensing=args.compressed_sensing,
     fraction=args.fraction)
 train_set, val_set = data_provider.train_validation_split()
@@ -77,7 +88,7 @@ Model = LstmModel(max_time_steps=train_set.max_num_ans,
 
 print('Experiment started at', START_TIME)
 print("Building model...")
-Model.build_graph(n_hidden_units=200,
+Model.build_graph(n_hidden_units=args.num_hidden_units,
                   learning_rate=args.learn_rate,
                   decay_exp=args.decay,
                   clip_norm=args.clip_norm,

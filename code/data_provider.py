@@ -197,6 +197,7 @@ class ASSISTDataProvider(DataProvider):
                 inputs, target_ids, targets, fraction)
 
             if use_compressed_sensing:
+                print('using compressed sensing!')
                 inputs = self.apply_compressed_sensing(inputs, rng)
 
         # pass the loaded data to the parent class __init__
@@ -257,6 +258,7 @@ class ASSISTDataProvider(DataProvider):
         self.max_prob_set_id = int(loaded['max_prob_set_id'])
         targets = loaded['targets']
         if use_plus_minus_feats:
+            print("using plus minus feats!!!")
             inputs = sp.load_npz(data_path + '-inputs-plus-minus.npz')
             self.encoding_dim = self.max_prob_set_id + 1
         else:
