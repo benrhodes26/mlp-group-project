@@ -6,16 +6,19 @@ import tensorflow as tf
 def events_to_numpy(event_file):
     """Return a numpy array of shape (epochs, metrics)."""
     result = []
+    event_triple = []
     for event in tf.train.summary_iterator(event_file):
-        value_set = []
-        is_result = False
         for v in event.summary.value:
             if v.tag == 'loss' or v.tag == 'accuracy' or v.tag == 'auc_1':
-                value_set.append(v.simple_value)
-                is_result = True
-        if is_result:
-            result.extend(value_set)
-    return np.array(result).reshape(-1,3)
+                event_triple.append(v.simple_value)
+
+        if len(event_triple) == 3:
+            # only extend the result vector if we have loss, acc and auc, since
+            # it's possible training gets interrupted after only getting loss
+            result.extend(event_triple)
+            event_triple = []
+
+    return np.array(result).reshape(-1, 3)
 
 
 def get_events_filepath(save_dir, name):
