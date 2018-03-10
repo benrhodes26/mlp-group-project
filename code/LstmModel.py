@@ -152,17 +152,17 @@ class LstmModel:
             elif optimisation == 'sgd':
                 optimizer = tf.train.GradientDescentOptimizer(learning_rate=self.learning_rate)
 
-            grads, trainable_vars = zip(*optimizer.compute_gradients(self.loss))
+            grads, trainable_vars = list(zip(*optimizer.compute_gradients(self.loss)))
 
             if clip_norm:
-                # todo worry about clip method??
                 # grads, _ = tf.clip_by_global_norm(grads, clip_norm)
                 grads = [tf.clip_by_norm(grad, clip_norm) for grad in grads]
-            if add_gradient_noise:
-                grads = [self.add_noise(g) for g in grads]
+            #if add_gradient_noise:
+            #    grads = [self.add_noise(g) for g in grads]
 
+            self.grads_and_vars = list(zip(grads, trainable_vars))
             self.training = optimizer.apply_gradients(
-                zip(grads, trainable_vars),
+                self.grads_and_vars,
                 global_step=self.global_step)
 
     def _build_metrics(self):

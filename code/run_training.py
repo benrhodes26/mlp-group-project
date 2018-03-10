@@ -9,16 +9,16 @@ import os
 import numpy as np
 import tensorflow as tf
 import matplotlib
+
 matplotlib.use('agg')
 import matplotlib.pyplot as plt
-
 
 START_TIME = strftime('%Y%m%d-%H%M', gmtime())
 
 parser = ArgumentParser(description='Train LstmModel.',
                         formatter_class=ArgumentDefaultsHelpFormatter)
 parser.add_argument('--data_dir', type=str,
-                    default='~/Dropbox/mlp-group-project/',
+                    default='/afs/inf.ed.ac.uk/user/s17/s1771906/MLP/mlp-group-project/data',
                     help='Path to directory containing data')
 parser.add_argument('--which_set', type=str, default='train',
                     help='Either train or test')
@@ -26,20 +26,20 @@ parser.add_argument('--which_year', type=str, default='09',
                     help='Year of ASSIST data. Either 09 or 15')
 parser.add_argument('--restore', default=None,
                     help='Path to .ckpt file of model to continue training')
-parser.add_argument('--optimisation',  type=str, default='sgd',
+parser.add_argument('--optimisation', type=str, default='sgd',
                     help='optimisation method. Choices are: adam, rmsprop, '
                          'momentum and sgd.')
-parser.add_argument('--init_learn_rate',  type=float, default=30,
+parser.add_argument('--init_learn_rate', type=float, default=30,
                     help='Initial learning rate.')
-parser.add_argument('--min_learn_rate',  type=float, default=1,
+parser.add_argument('--min_learn_rate', type=float, default=1,
                     help='minimum possible learning rate.')
-parser.add_argument('--lr_decay_step',  type=float, default=12,
+parser.add_argument('--lr_decay_step', type=float, default=12,
                     help='Decrease learning rate every x epochs')
-parser.add_argument('--lr_exp_decay',  type=float, default=(1/3),
+parser.add_argument('--lr_exp_decay', type=float, default=(1 / 3),
                     help='fraction to multiply learning rate by each step')
-parser.add_argument('--num_hidden_units',  type=int, default=200,
+parser.add_argument('--num_hidden_units', type=int, default=200,
                     help='Number of hidden units in the LSTM cell')
-parser.add_argument('--batch',  type=int, default=32,
+parser.add_argument('--batch', type=int, default=32,
                     help='Batch size')
 parser.add_argument('--epochs', type=int, default=100,
                     help='Number of training epochs')
@@ -47,9 +47,9 @@ parser.add_argument('--decay', type=float, default=0.96,
                     help='Fraction to decay learning rate every 100 batches')
 parser.add_argument('--decay_step', type=int, default=3000,
                     help='Apply learning rate decay every x batches')
-parser.add_argument('--add_gradient_noise', type=float, default=1e-3,
-                    help='add gaussian noise with stdev=1e-3 to gradients')
-parser.add_argument('--clip_norm', type=float, default=20,
+# parser.add_argument('--add_gradient_noise', type=float, default=1e-3,
+#                    help='add gaussian noise with stdev=1e-3 to gradients')
+parser.add_argument('--clip_norm', type=float, default=1,
                     help='clip norms of gradients')
 parser.add_argument('--keep_prob', type=float, default=0.6,
                     help='Fraction to keep in dropout applied to LSTM cell')
@@ -68,8 +68,13 @@ parser.add_argument('--compressed_sensing', dest='compressed_sensing', action='s
 parser.add_argument('--no-compressed_sensing', dest='compressed_sensing', action='store_false',
                     help='do not use use compressed sensing')
 parser.set_defaults(compressed_sensing=False)
+parser.add_argument('--log_stats', dest='log_stats', action='store_true',
+                    help='print learning rate and gradient norms once an epoch')
+parser.add_argument('--no-log_stats', dest='log_stats', action='store_false',
+                    help='do not print learning rate and gradient norms once an epoch')
+parser.set_defaults(log_stats=False)
 parser.add_argument('--fraction', type=float, default=1.0,
-                    help='Fraction of data to use. Useful for hyperparam tuning')
+                    help='Fraction of data to use. Useful for hyperparameter tuning')
 parser.add_argument('--name', type=str, default=START_TIME,
                     help='Name of experiment when saving model')
 parser.add_argument('--model_dir', type=str, default='.',
@@ -98,7 +103,7 @@ print('Experiment started at', START_TIME)
 print("Building model...")
 Model.build_graph(n_hidden_units=args.num_hidden_units,
                   clip_norm=args.clip_norm,
-                  add_gradient_noise=args.add_gradient_noise,
+                  # add_gradient_noise=args.add_gradient_noise,
                   optimisation=args.optimisation)
 print("Model built!")
 
@@ -108,8 +113,8 @@ valid_saver = tf.train.Saver()
 with tf.Session() as sess:
     merged_loss = tf.summary.merge(Model.summary_loss)
     merged_aucacc = tf.summary.merge(Model.summary_aucacc)
-    train_writer = tf.summary.FileWriter(SAVE_DIR+'/train', graph=sess.graph)
-    valid_writer = tf.summary.FileWriter(SAVE_DIR+'/valid', graph=sess.graph)
+    train_writer = tf.summary.FileWriter(SAVE_DIR + '/train', graph=sess.graph)
+    valid_writer = tf.summary.FileWriter(SAVE_DIR + '/valid', graph=sess.graph)
     sess.run(tf.global_variables_initializer())
 
     if args.restore:
@@ -121,13 +126,12 @@ with tf.Session() as sess:
         # Train one epoch!
         sess.run(Model.auc_init)
         sess.run(Model.acc_init)
+        learning_rate = get_learning_rate(epoch,
+                                          args.init_learn_rate,
+                                          args.min_learn_rate,
+                                          args.lr_exp_decay,
+                                          args.lr_decay_step)
         for i, (inputs, targets, target_ids) in enumerate(train_set):
-
-            learning_rate = get_learning_rate(epoch,
-                                              args.init_learn_rate,
-                                              args.min_learn_rate,
-                                              args.lr_exp_decay,
-                                              args.lr_decay_step)
             _, loss, acc_update, auc_update, summary_loss = sess.run(
                 [Model.training, Model.loss, Model.accuracy[1], Model.auc[1],
                  merged_loss],
@@ -137,6 +141,18 @@ with tf.Session() as sess:
                            Model.learning_rate: learning_rate,
                            Model.keep_prob: float(args.keep_prob)})
 
+            if args.log_stats and i == 0:
+                # optional logging for debugging.
+                print("learning rate is: {}".format(learning_rate))
+                for gv in Model.grads_and_vars:
+                    _ = sess.run([tf.Print(gv, [tf.norm(gv[0]), gv[1].name],
+                                           message="Grad norm is: ")],
+                                 feed_dict={Model.inputs: inputs,
+                                            Model.targets: targets,
+                                            Model.target_ids: target_ids,
+                                            Model.learning_rate: learning_rate,
+                                            Model.keep_prob: float(args.keep_prob)})
+
         accuracy, auc, summary_aucacc = sess.run(
             [Model.accuracy[0], Model.auc[0], merged_aucacc],
             feed_dict={Model.inputs: inputs,
@@ -144,7 +160,7 @@ with tf.Session() as sess:
                        Model.target_ids: target_ids})
         print(
             "Epoch {},  Loss: {:.3f},  Accuracy: {:.3f},  AUC: {:.3f} (train)"
-            .format(epoch, loss, accuracy, auc))
+                .format(epoch, loss, accuracy, auc))
 
         train_writer.add_summary(summary_loss, epoch)
         train_writer.add_summary(summary_aucacc, epoch)

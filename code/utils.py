@@ -10,8 +10,8 @@ def get_learning_rate(current_epoch, init_learning_rate,
     x equals num_epochs_per_step. Do not lower the learning rate below
     min_learning_rate"""
 
-    current_step = current_epoch % decay_step
-    new_learning_rate = init_learning_rate - (exp_decay**current_step)
+    current_step = int(current_epoch / decay_step)
+    new_learning_rate = init_learning_rate*(exp_decay**current_step)
 
     return max(min_learning_rate, new_learning_rate)
 
