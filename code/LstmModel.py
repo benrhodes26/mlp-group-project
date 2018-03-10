@@ -22,18 +22,15 @@ class LstmModel:
             self,
             n_hidden_layers=1,
             n_hidden_units=200,
-            learning_rate=0.01,
-            clip_norm=10.0,
-            decay_exp=None,
+            clip_norm=5*1e-5,
             add_gradient_noise=1e-3,
-            decay_step=3000):
+            optimisation='adam'):
+
         self._build_model(n_hidden_layers=n_hidden_layers,
                           n_hidden_units=n_hidden_units)
-        self._build_training(learning_rate=learning_rate,
-                             decay_exp=decay_exp,
-                             clip_norm=clip_norm,
+        self._build_training(clip_norm=clip_norm,
                              add_gradient_noise=add_gradient_noise,
-                             decay_step=decay_step)
+                             optimisation=optimisation)
         self._build_metrics()
 
     def _build_model(self, n_hidden_layers=1, n_hidden_units=200):
@@ -54,8 +51,6 @@ class LstmModel:
             A single hidden layer was used in DKT paper
         n_hidden_units : int (default=200)
             200 hidden units were used in DKT paper
-        keep_prob : float in [0, 1] (default=1.0)
-            Probability a unit is kept in dropout layer
         """
         tf.reset_default_graph()
 
@@ -78,6 +73,7 @@ class LstmModel:
         self.keep_prob = tf.placeholder_with_default(1.0, shape=(),
                                                      name='keep_prob')
         # with tf.variable_scope('RNN', initializer=tf.contrib.layers.xavier_initializer()):
+        # todo worry about initialisation?
         # with tf.variable_scope('RNN', initializer=tf.random_uniform_initializer(-0.5, 0.5)):
             # model. LSTM layer(s) then linear layer (softmax applied in loss)
         cell = tf.nn.rnn_cell.BasicLSTMCell(n_hidden_units)
@@ -120,9 +116,8 @@ class LstmModel:
         self.logits = tf.dynamic_partition(logits, self.target_ids, 2)[1]
         self.predictions = tf.round(tf.nn.sigmoid(self.logits))
 
-    def _build_training(self, learning_rate=0.001, decay_exp=None,
-                        clip_norm=10.0, add_gradient_noise=1e-3,
-                        decay_step=3000):
+    def _build_training(self, clip_norm=5*1e-5, add_gradient_noise=1e-3,
+                        optimisation='adam'):
         """Define parameters updates.
 
         Applies exponential learning rate decay (optional). See:
@@ -140,19 +135,27 @@ class LstmModel:
         # track number of batches seen
         self.global_step = tf.Variable(0, name="global_step", trainable=False)
 
-        if decay_exp:  # decay every 3000 batches, roughly 2 epochs on 2015 data
-            learning_rate = tf.train.exponential_decay(
-                learning_rate=learning_rate, global_step=self.global_step,
-                decay_rate=decay_exp, decay_steps=decay_step, staircase=True)
+        self.learning_rate = tf.placeholder_with_default(1.0, shape=(),
+                                                         name='learning_rate')
 
         update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
         with tf.control_dependencies(update_ops):
             # Ensures that we execute the update_ops before performing the
             # train_step
-            optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
+
+            if optimisation == 'adam':
+                optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate)
+            elif optimisation == 'rmsprop':
+                optimizer = tf.train.RMSPropOptimizer(learning_rate=self.learning_rate)
+            elif optimisation == 'momentum':
+                optimizer = tf.train.MomentumOptimizer(learning_rate=self.learning_rate)
+            elif optimisation == 'sgd':
+                optimizer = tf.train.GradientDescentOptimizer(learning_rate=self.learning_rate)
+
             grads, trainable_vars = zip(*optimizer.compute_gradients(self.loss))
 
             if clip_norm:
+                # todo worry about clip method??
                 # grads, _ = tf.clip_by_global_norm(grads, clip_norm)
                 grads = [tf.clip_by_norm(grad, clip_norm) for grad in grads]
             if add_gradient_noise:
