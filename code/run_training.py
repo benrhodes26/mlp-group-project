@@ -115,10 +115,12 @@ with tf.Session() as sess:
         # Train one epoch!
         sess.run(Model.auc_init)
         sess.run(Model.acc_init)
+        total_sum = 0
+        total_num = 0
         for i, (inputs, targets, target_ids) in enumerate(train_set):
-            _, loss, acc_update, auc_update, summary_loss = sess.run(
+            _, loss, acc_update, auc_update, summary_loss,logit_list = sess.run(
                 [Model.training, Model.loss, Model.accuracy[1], Model.auc[1],
-                 merged_loss],
+                 merged_loss,Model.logit_list],
                 feed_dict={Model.inputs: inputs,
                            Model.targets: targets,
                            Model.target_ids: target_ids,
@@ -129,10 +131,18 @@ with tf.Session() as sess:
                 feed_dict={Model.inputs: inputs,
                            Model.targets: targets,
                            Model.target_ids: target_ids})
-            print(
-                "Epoch {}-{},  Loss: {:.3f},  Accuracy: {:.3f},  AUC: {:.3f} (train)"
-                .format(epoch,i, loss, accuracy, auc))
 
+            predict = logit_list[0]['prediction']
+            logits = logit_list[0]['logits']
+            target = logit_list[0]['target']
+            compare = np.array([target, predict, logits]).T
+            total_sum += np.sum(target - predict != 0)
+            total_num += len(target)
+        print(
+            "Epoch {},  Loss: {:.3f},  Total_sum:{:.3f}, Accuracy: {:.3f},  AUC: {:.3f} (train)"
+                .format(epoch, loss, total_sum / total_num, accuracy, auc))
+
+        '''
         train_writer.add_summary(summary_loss, epoch)
         train_writer.add_summary(summary_aucacc, epoch)
 
@@ -162,8 +172,8 @@ with tf.Session() as sess:
                            Model.targets: targets,
                            Model.target_ids: target_ids,
                            Model.keep_prob: 1.0})
-            print("Epoch {}-{},  Loss: {:.3f},  Accuracy: {:.3f},  AUC: {:.3f} (valid)"
-                  .format(epoch, i,loss, accuracy, auc))
+        print("Epoch {},  Loss: {:.3f},  Accuracy: {:.3f},  AUC: {:.3f} (valid)"
+                .format(epoch,loss, accuracy, auc))
 
         valid_writer.add_summary(summary_loss, epoch)
         valid_writer.add_summary(summary_aucacc, epoch)
@@ -210,3 +220,4 @@ with tf.Session() as sess:
     plt.ylabel('Accuracy')
     plt.title('Accuracy per epoch')
     plt.savefig(SAVE_DIR + '/accuracy.png')
+'''

@@ -15,7 +15,8 @@ def events_to_numpy(event_file):
                 is_result = True
         if is_result:
             result.extend(value_set)
-    return np.array(result).reshape(-1,3)
+    epoch = (len(result)/3)*3
+    return np.array(result[:epoch]).reshape(-1,3)
 
 
 def get_events_filepath(save_dir, name):
