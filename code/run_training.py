@@ -96,8 +96,7 @@ Model = LstmModel(max_time_steps=train_set.max_num_ans,
 
 print('Experiment started at', START_TIME)
 print("Building model...")
-Model.build_graph(n_hidden_layers=args.hidden_layers,
-                  n_hidden_units=args.num_hidden_units,
+Model.build_graph(n_hidden_units=args.num_hidden_units,
                   clip_norm=args.clip_norm,
                   add_gradient_noise=args.add_gradient_noise,
                   optimisation=args.optimisation)
