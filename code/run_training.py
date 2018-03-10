@@ -1,6 +1,6 @@
 from data_provider import ASSISTDataProvider
 from LstmModel import LstmModel
-from utils import get_events_filepath, events_to_numpy
+from utils import get_events_filepath, events_to_numpy, get_learning_rate
 
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from time import gmtime, strftime
@@ -26,8 +26,17 @@ parser.add_argument('--which_year', type=str, default='09',
                     help='Year of ASSIST data. Either 09 or 15')
 parser.add_argument('--restore', default=None,
                     help='Path to .ckpt file of model to continue training')
-parser.add_argument('--learn_rate',  type=float, default=0.01,
-                    help='Initial learning rate for Adam optimiser')
+parser.add_argument('--optimisation',  type=str, default='sgd',
+                    help='optimisation method. Choices are: adam, rmsprop, '
+                         'momentum and sgd.')
+parser.add_argument('--init_learn_rate',  type=float, default=30,
+                    help='Initial learning rate.')
+parser.add_argument('--min_learn_rate',  type=float, default=1,
+                    help='minimum possible learning rate.')
+parser.add_argument('--lr_decay_step',  type=float, default=12,
+                    help='Decrease learning rate every x epochs')
+parser.add_argument('--lr_exp_decay',  type=float, default=(1/3),
+                    help='fraction to multiply learning rate by each step')
 parser.add_argument('--num_hidden_units',  type=int, default=200,
                     help='Number of hidden units in the LSTM cell')
 parser.add_argument('--batch',  type=int, default=32,
@@ -87,12 +96,11 @@ Model = LstmModel(max_time_steps=train_set.max_num_ans,
 
 print('Experiment started at', START_TIME)
 print("Building model...")
-Model.build_graph(n_hidden_units=args.num_hidden_units,
-                  learning_rate=args.learn_rate,
-                  decay_exp=args.decay,
+Model.build_graph(n_hidden_layers=args.hidden_layers,
+                  n_hidden_units=args.num_hidden_units,
                   clip_norm=args.clip_norm,
                   add_gradient_noise=args.add_gradient_noise,
-                  decay_step=args.decay_step)
+                  optimisation=args.optimisation)
 print("Model built!")
 
 train_saver = tf.train.Saver()
@@ -115,12 +123,19 @@ with tf.Session() as sess:
         sess.run(Model.auc_init)
         sess.run(Model.acc_init)
         for i, (inputs, targets, target_ids) in enumerate(train_set):
+
+            learning_rate = get_learning_rate(epoch,
+                                              args.init_learn_rate,
+                                              args.min_learn_rate,
+                                              args.lr_exp_decay,
+                                              args.lr_decay_step)
             _, loss, acc_update, auc_update, summary_loss = sess.run(
                 [Model.training, Model.loss, Model.accuracy[1], Model.auc[1],
                  merged_loss],
                 feed_dict={Model.inputs: inputs,
                            Model.targets: targets,
                            Model.target_ids: target_ids,
+                           Model.learning_rate: learning_rate,
                            Model.keep_prob: float(args.keep_prob)})
 
         accuracy, auc, summary_aucacc = sess.run(
