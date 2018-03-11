@@ -96,7 +96,7 @@ class LstmModel:
 
         self.outputs, self.state = tf.nn.dynamic_rnn(cell=cell,
                                                      inputs=self.inputs,
-                                                     dtype=tf.float32)
+                                                     dtype=tf.float32, initial_state = cell.zero_state(100, dtype=tf.float32))
 
         sigmoid_w = tf.get_variable(dtype=tf.float32,
                                     name="sigmoid_w",
