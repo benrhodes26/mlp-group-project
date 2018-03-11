@@ -74,29 +74,29 @@ class LstmModel:
                                                      name='keep_prob')
         # with tf.variable_scope('RNN', initializer=tf.contrib.layers.xavier_initializer()):
         # todo worry about initialisation?
-        # with tf.variable_scope('RNN', initializer=tf.random_uniform_initializer(-0.5, 0.5)):
+        with tf.variable_scope('RNN', initializer=tf.random_uniform_initializer(-0.005, 0.005)):
             # model. LSTM layer(s) then linear layer (softmax applied in loss)
-        cell = tf.nn.rnn_cell.BasicLSTMCell(n_hidden_units)
+            cell = tf.nn.rnn_cell.BasicLSTMCell(n_hidden_units)
 
-        if self.var_dropout:
-            cell = tf.nn.rnn_cell.DropoutWrapper(cell,
-                                                 output_keep_prob=self.keep_prob,
-                                                 state_keep_prob=self.keep_prob,
-                                                 variational_recurrent=self.var_dropout,
-                                                 dtype=tf.float32)
-        else:
-            # Only apply non-variational dropout to output connections
-            cell = tf.nn.rnn_cell.DropoutWrapper(cell,
-                                                 output_keep_prob=self.keep_prob,
-                                                 dtype=tf.float32)
-
-        if n_hidden_layers > 1:
-            cells = [cell for layer in n_hidden_layers]
-            cell = tf.nn.rnn_cell.MultiRNNCell(cells)
-
-        self.outputs, self.state = tf.nn.dynamic_rnn(cell=cell,
-                                                     inputs=self.inputs,
+            if self.var_dropout:
+                cell = tf.nn.rnn_cell.DropoutWrapper(cell,
+                                                     output_keep_prob=self.keep_prob,
+                                                     state_keep_prob=self.keep_prob,
+                                                     variational_recurrent=self.var_dropout,
                                                      dtype=tf.float32)
+            else:
+                # Only apply non-variational dropout to output connections
+                cell = tf.nn.rnn_cell.DropoutWrapper(cell,
+                                                     output_keep_prob=self.keep_prob,
+                                                     dtype=tf.float32)
+
+            if n_hidden_layers > 1:
+                cells = [cell for layer in n_hidden_layers]
+                cell = tf.nn.rnn_cell.MultiRNNCell(cells)
+
+            self.outputs, self.state = tf.nn.dynamic_rnn(cell=cell,
+                                                         inputs=self.inputs,
+                                                         dtype=tf.float32)
 
         sigmoid_w = tf.get_variable(dtype=tf.float32,
                                     name="sigmoid_w",
@@ -148,7 +148,7 @@ class LstmModel:
             elif optimisation == 'rmsprop':
                 optimizer = tf.train.RMSPropOptimizer(learning_rate=self.learning_rate)
             elif optimisation == 'momentum':
-                optimizer = tf.train.MomentumOptimizer(learning_rate=self.learning_rate)
+                optimizer = tf.train.MomentumOptimizer(learning_rate=self.learning_rate, momentum=0.98)
             elif optimisation == 'sgd':
                 optimizer = tf.train.GradientDescentOptimizer(learning_rate=self.learning_rate)
 

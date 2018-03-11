@@ -69,9 +69,9 @@ parser.add_argument('--no-compressed_sensing', dest='compressed_sensing', action
                     help='do not use use compressed sensing')
 parser.set_defaults(compressed_sensing=False)
 parser.add_argument('--log_stats', dest='log_stats', action='store_true',
-                    help='print learning rate and gradient norms once an epoch')
+                    help='print learning rate and gradient norms once every 10 epochs')
 parser.add_argument('--no-log_stats', dest='log_stats', action='store_false',
-                    help='do not print learning rate and gradient norms once an epoch')
+                    help='do not print learning rate and gradient norms once every 10 epochs')
 parser.set_defaults(log_stats=False)
 parser.add_argument('--fraction', type=float, default=1.0,
                     help='Fraction of data to use. Useful for hyperparameter tuning')
@@ -141,7 +141,7 @@ with tf.Session() as sess:
                            Model.learning_rate: learning_rate,
                            Model.keep_prob: float(args.keep_prob)})
 
-            if args.log_stats and i == 0:
+            if args.log_stats and epoch % 10 == 0 and i == 0:
                 # optional logging for debugging.
                 print("learning rate is: {}".format(learning_rate))
                 for gv in Model.grads_and_vars:
