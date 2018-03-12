@@ -143,6 +143,7 @@ class ASSISTDataProvider(DataProvider):
             data_dir,
             which_set='train',
             which_year='09',
+            num_ans_threshold=None,
             fraction=1,
             use_plus_minus_feats=False,
             use_compressed_sensing=False,
@@ -186,18 +187,18 @@ class ASSISTDataProvider(DataProvider):
         self.use_compressed_sensing = use_compressed_sensing
 
         if data:
-            inputs, targets, self.target_ids = data['inputs'], data['targets'], data['target_ids']
-            self.max_num_ans, self.max_prob_set_id = data['max_num_ans'], data['max_prob_set_id']
+            inputs, targets, self.target_ids = data['inputs'], \
+                data['targets'], data['target_ids']
+            self.max_num_ans, self.max_prob_set_id = data['max_num_ans'],\
+                data['max_prob_set_id']
             self.encoding_dim = data['encoding_dim']
         else:
-            inputs, target_ids, targets = \
-                self.load_data(data_path, use_plus_minus_feats)
-
-            inputs, targets = self.reduce_data(
-                inputs, target_ids, targets, fraction)
-
+            inputs, targets = self.load_data(data_path, use_plus_minus_feats)
+            inputs, targets = self.reduce_data(inputs, targets, fraction)
+            if num_ans_threshold:
+                inputs, targets = self.threshold_num_ans(inputs, targets,
+                                                         num_ans_threshold)
             if use_compressed_sensing:
-                print('using compressed sensing!')
                 inputs = self.apply_compressed_sensing(inputs, rng)
 
         # pass the loaded data to the parent class __init__
@@ -209,6 +210,7 @@ class ASSISTDataProvider(DataProvider):
         vector sampled from a standard gaussian in a lower dimensional space. If this
         is test time, load training matrix from file. If train time, make the matrix.
         """
+        print('using compressed sensing!')
         train_path = os.path.join(
             self.data_dir, 'assist{0}-{1}'.format(self.which_year, 'train'))
 
@@ -244,12 +246,37 @@ class ASSISTDataProvider(DataProvider):
 
         return sp.csr_matrix(inputs.reshape(num_students, -1))
 
-    def reduce_data(self, inputs, target_ids, targets, fraction):
+    def reduce_data(self, inputs, targets, fraction):
         num_data = int(inputs.shape[0] * fraction)
-        targets = targets[:num_data]
         inputs = inputs[:num_data]
-        self.target_ids = target_ids[:num_data]
+        targets = targets[:num_data]
+        self.target_ids = self.target_ids[:num_data]
         return inputs, targets
+
+    def threshold_num_ans(self, inputs, targets, threshold):
+        """remove all but the first self.num_ans_threshold answers from each student"""
+        new_max_num_ans = min(self.max_num_ans, threshold)
+        num_students = inputs.shape[0]
+
+        print('Thresholding the number of questions answered by each student '
+              'to: {}. This might take a minute...'.format(threshold))
+        inputs = inputs.toarray()
+        inputs = inputs.reshape(num_students, self.max_num_ans,
+                                self.encoding_dim)
+        new_inputs = inputs[:, :new_max_num_ans, :]
+        new_inputs = sp.csr_matrix(new_inputs.reshape(num_students, -1))
+
+        target_ids = self.target_ids.toarray()
+        target_ids = target_ids.reshape(num_students,
+                                        self.max_num_ans, self.max_prob_set_id)
+        new_target_ids = target_ids[:, :new_max_num_ans, :]
+        self.target_ids = sp.csr_matrix(new_target_ids.reshape(num_students, -1))
+
+        new_targets = np.array([student[:new_max_num_ans] for student in targets])
+        self.max_num_ans = new_max_num_ans
+        print('Finished thresholding')
+
+        return new_inputs, new_targets
 
     def load_data(self, data_path, use_plus_minus_feats):
         """ Load data from files, optionally reducing and/or compressing"""
@@ -264,9 +291,9 @@ class ASSISTDataProvider(DataProvider):
         else:
             inputs = sp.load_npz(data_path + '-inputs.npz')
             self.encoding_dim = 2 * self.max_prob_set_id + 1
-        target_ids = sp.load_npz(data_path + '-targetids.npz')
+        self.target_ids = sp.load_npz(data_path + '-targetids.npz')
 
-        return inputs, target_ids, targets
+        return inputs, targets
 
     def next(self):
         """Returns next data batch or raises `StopIteration` if at end."""
@@ -299,13 +326,10 @@ class ASSISTDataProvider(DataProvider):
         # targets_batch is a list of lists, which we need to flatten
         batch_targets = [i for sublist in targets_batch for i in sublist]
         batch_targets = np.array(batch_targets, dtype=np.float32)
-        # during learning, the data for each student in a batch gets shuffled together.
-        # hence, we need a vector of indices to locate their predictions after
-        # learning
+        # during learning, the data for each student in a batch gets shuffled together
+        # hence, we need a vector of indices to locate their predictions after learning
         batch_target_ids = target_ids_batch.toarray()
-        batch_target_ids = np.array(
-            batch_target_ids.reshape(-1),
-            dtype=np.int32)
+        batch_target_ids = np.array(batch_target_ids.reshape(-1), dtype=np.int32)
 
         return batch_inputs, batch_target_ids, batch_targets
 

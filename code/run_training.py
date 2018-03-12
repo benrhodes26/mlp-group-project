@@ -41,6 +41,8 @@ parser.add_argument('--num_hidden_units', type=int, default=200,
                     help='Number of hidden units in the LSTM cell')
 parser.add_argument('--batch', type=int, default=32,
                     help='Batch size')
+parser.add_argument('--max_time_steps', type=int, default=100,
+                    help='limit length of students sequences of answers')
 parser.add_argument('--epochs', type=int, default=100,
                     help='Number of training epochs')
 parser.add_argument('--decay', type=float, default=0.96,
@@ -89,6 +91,7 @@ data_provider = ASSISTDataProvider(
     which_set=args.which_set,
     which_year=args.which_year,
     batch_size=args.batch,
+    num_ans_threshold=args.max_time_steps,
     use_plus_minus_feats=args.plus_minus_feats,
     use_compressed_sensing=args.compressed_sensing,
     fraction=args.fraction)
