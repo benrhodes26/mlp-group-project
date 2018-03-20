@@ -143,7 +143,6 @@ class ASSISTDataProvider(DataProvider):
             data_dir,
             which_set='train',
             which_year='09',
-            num_ans_threshold=None,
             fraction=1,
             use_plus_minus_feats=False,
             use_compressed_sensing=False,
@@ -195,9 +194,6 @@ class ASSISTDataProvider(DataProvider):
         else:
             inputs, targets = self.load_data(data_path, use_plus_minus_feats)
             inputs, targets = self.reduce_data(inputs, targets, fraction)
-            if num_ans_threshold:
-                inputs, targets = self.threshold_num_ans(inputs, targets,
-                                                         num_ans_threshold)
             if use_compressed_sensing:
                 inputs = self.apply_compressed_sensing(inputs, rng)
 
@@ -252,31 +248,6 @@ class ASSISTDataProvider(DataProvider):
         targets = targets[:num_data]
         self.target_ids = self.target_ids[:num_data]
         return inputs, targets
-
-    def threshold_num_ans(self, inputs, targets, threshold):
-        """remove all but the first self.num_ans_threshold answers from each student"""
-        new_max_num_ans = min(self.max_num_ans, threshold)
-        num_students = inputs.shape[0]
-
-        print('Thresholding the number of questions answered by each student '
-              'to: {}. This might take a minute...'.format(threshold))
-        inputs = inputs.toarray()
-        inputs = inputs.reshape(num_students, self.max_num_ans,
-                                self.encoding_dim)
-        new_inputs = inputs[:, :new_max_num_ans, :]
-        new_inputs = sp.csr_matrix(new_inputs.reshape(num_students, -1))
-
-        target_ids = self.target_ids.toarray()
-        target_ids = target_ids.reshape(num_students,
-                                        self.max_num_ans, self.max_prob_set_id)
-        new_target_ids = target_ids[:, :new_max_num_ans, :]
-        self.target_ids = sp.csr_matrix(new_target_ids.reshape(num_students, -1))
-
-        new_targets = np.array([student[:new_max_num_ans] for student in targets])
-        self.max_num_ans = new_max_num_ans
-        print('Finished thresholding')
-
-        return new_inputs, new_targets
 
     def load_data(self, data_path, use_plus_minus_feats):
         """ Load data from files, optionally reducing and/or compressing"""
@@ -350,7 +321,7 @@ class ASSISTDataProvider(DataProvider):
         self.targets = self.targets[perm]
         self.target_ids = self.target_ids[perm]
 
-    def get_k_folds(self, k):
+    def _get_k_folds(self, k, threshold):
         """ Returns k pairs of DataProviders: (train_data_provider, val_data_provider)
         where the data split in each tuple is determined by k-fold cross val."""
 
@@ -369,18 +340,29 @@ class ASSISTDataProvider(DataProvider):
             targets_train, targets_val = targets[train_index], targets[val_index]
             target_ids_train, targets_ids_val = target_ids[train_index], target_ids[val_index]
 
+            # break up a student's sequence (into threshold-sized chunks)
+            # *after* the train/val split since if we did it beforehand then the same
+            # students' data might be split across the two sets, which would make the
+            # validation set a bad proxy for the test set.
+            inputs_train, target_ids_train, targets_train, threshold = \
+                self.threshold_num_ans(inputs_train, target_ids_train,
+                                       targets_train, threshold)
+            inputs_val, targets_ids_val, targets_val, threshold = \
+                self.threshold_num_ans(inputs_val, targets_ids_val,
+                                       targets_val, threshold)
+
             train_data = {
                 'inputs': inputs_train,
                 'targets': targets_train,
                 'target_ids': target_ids_train,
-                'max_num_ans': self.max_num_ans,
+                'max_num_ans': threshold,
                 'max_prob_set_id': self.max_prob_set_id,
                 'encoding_dim': self.encoding_dim}
             val_data = {
                 'inputs': inputs_val,
                 'targets': targets_val,
                 'target_ids': targets_ids_val,
-                'max_num_ans': self.max_num_ans,
+                'max_num_ans': threshold,
                 'max_prob_set_id': self.max_prob_set_id,
                 'encoding_dim': self.encoding_dim}
 
@@ -410,13 +392,75 @@ class ASSISTDataProvider(DataProvider):
                 data=val_data)
             yield (train_dp, val_dp)
 
-    def train_validation_split(self):
-        """Return 2 data providers with 80/20 data split."""
-        for train, validation in self.get_k_folds(5):
+    def train_validation_split(self, threshold):
+        """Return 2 data providers with 80/20 data split
+
+        Note, we break up a student's sequence (into threshold-sized chunks)
+        *after* the train/val split since if we did it beforehand then the same
+        students' data might be split across the two sets, which would make the
+        validation set a bad proxy for the test set"""
+        for train, validation in self._get_k_folds(5, threshold):
             train_provider = train
             validation_provider = validation
             break
         return train_provider, validation_provider
+
+    def threshold_num_ans(self, inputs, target_ids, targets, threshold):
+        """Split the data of each student into threshold*encoding_dim chunks.
+
+        Rather than use the default max_num_ans*encoding_dim vector that contains all the
+        (padded) data for that student, we break up a student's data into chunks. Each new chunk is
+        effectively treated as a new student. Note that since we have already right-padded
+        student's data with zeros, some of these new chunks will be all zero, and can thus
+        be discarded."""
+        threshold = min(self.max_num_ans, threshold)
+        num_students = inputs.shape[0]
+
+        inputs = self._threshold_inputs_or_ids(inputs,
+                                               self.encoding_dim,
+                                               num_students,
+                                               threshold)
+        target_ids = self._threshold_inputs_or_ids(target_ids,
+                                                   self.max_prob_set_id,
+                                                   num_students,
+                                                   threshold)
+        targets = self._threshold_targets(targets, threshold)
+        print('Number of effective students is now {}.'.format(inputs.shape[0]))
+
+        return inputs, target_ids, targets, threshold
+
+    def _threshold_targets(self, targets, threshold):
+        new_targets = []
+        for student in targets:
+            for i in range(0, len(student), threshold):
+                new_targets.append(student[i:i + threshold])
+        return np.array(new_targets)
+
+    def _threshold_inputs_or_ids(self, input_or_id, final_dim,
+                                 num_students, threshold):
+        x = input_or_id.toarray()
+        x = x.reshape(num_students,
+                      self.max_num_ans,
+                      final_dim)
+
+        # We want to break the data into threshold-sized chunks,
+        # so right-pad with zeros to ensure divisibility
+        pad_size = threshold - self.max_num_ans % threshold
+        pad = ((0, 0), (0, pad_size), (0, 0))
+        x = np.pad(x, pad_width=pad, mode='constant', constant_values=0)
+
+        # break up data into threshold-sized chunks
+        new_x = x.reshape(-1, threshold, final_dim)
+
+        # Only keep those chunks that are non-zero
+        non_empty_mask = np.max((new_x != np.zeros((threshold, final_dim))),
+                                axis=(1, 2))
+        num_effective_students = np.sum(non_empty_mask)
+        non_empty_indices = np.nonzero(non_empty_mask)
+        new_x = new_x[non_empty_indices]
+        new_x = sp.csr_matrix(new_x.reshape(num_effective_students, -1))
+
+        return new_x
 
     def _validate_inputs(self, which_set, which_year, data_path):
         assert which_set in ['train', 'test'], (

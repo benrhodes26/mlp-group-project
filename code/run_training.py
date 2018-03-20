@@ -91,11 +91,10 @@ data_provider = ASSISTDataProvider(
     which_set=args.which_set,
     which_year=args.which_year,
     batch_size=args.batch,
-    num_ans_threshold=args.max_time_steps,
     use_plus_minus_feats=args.plus_minus_feats,
     use_compressed_sensing=args.compressed_sensing,
     fraction=args.fraction)
-train_set, val_set = data_provider.train_validation_split()
+train_set, val_set = data_provider.train_validation_split(args.max_time_steps)
 
 Model = LstmModel(max_time_steps=train_set.max_num_ans,
                   feature_len=train_set.encoding_dim,
