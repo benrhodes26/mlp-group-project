@@ -3,6 +3,7 @@ from LstmModel import LstmModel
 from utils import get_events_filepath, events_to_numpy, get_learning_rate
 
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
+from sklearn import metrics
 from time import gmtime, strftime
 
 import os
@@ -94,7 +95,19 @@ data_provider = ASSISTDataProvider(
     use_plus_minus_feats=args.plus_minus_feats,
     use_compressed_sensing=args.compressed_sensing,
     fraction=args.fraction)
-train_set, val_set = data_provider.train_validation_split(args.max_time_steps)
+# train_set, val_set = data_provider.train_validation_split(args.max_time_steps)
+train_set = data_provider
+val_set = ASSISTDataProvider(
+    args.data_dir,
+    which_set='test',
+    which_year=args.which_year,
+    batch_size=args.batch,
+    use_plus_minus_feats=args.plus_minus_feats,
+    use_compressed_sensing=args.compressed_sensing,
+    fraction=args.fraction)
+
+train_set.threshold_num_ans(args.max_time_steps)
+val_set.threshold_num_ans(args.max_time_steps)
 
 Model = LstmModel(max_time_steps=train_set.max_num_ans,
                   feature_len=train_set.encoding_dim,
@@ -135,8 +148,8 @@ with tf.Session() as sess:
                                           args.lr_decay_step)
         for i, (inputs, targets, target_ids) in enumerate(train_set):
             _, loss, acc_update, auc_update, summary_loss = sess.run(
-                [Model.training, Model.loss, Model.accuracy[1], Model.auc[1],
-                 merged_loss],
+                [Model.training, Model.loss,
+                 Model.accuracy[1], Model.auc[1], merged_loss],
                 feed_dict={Model.inputs: inputs,
                            Model.targets: targets,
                            Model.target_ids: target_ids,
@@ -161,8 +174,8 @@ with tf.Session() as sess:
                        Model.targets: targets,
                        Model.target_ids: target_ids})
         print(
-            "Epoch {},  Loss: {:.3f},  Accuracy: {:.3f},  AUC: {:.3f} (train)"
-                .format(epoch, loss, accuracy, auc))
+            "Epoch {},  Loss: {:.3f},  Accuracy: {:.3f}, AUC: {:.3f} (train)"
+            .format(epoch, loss, accuracy, auc))
 
         train_writer.add_summary(summary_loss, epoch)
         train_writer.add_summary(summary_aucacc, epoch)
@@ -174,14 +187,10 @@ with tf.Session() as sess:
         sess.run(Model.auc_init)
         sess.run(Model.acc_init)
 
-        # Compute metrics on validation set (no training)
-        loss_total = 0
-        accuracy_total = 0
-        auc_total = 0
-
         for i, (inputs, targets, target_ids) in enumerate(val_set):
             loss, acc_update, auc_update, summary_loss = sess.run(
-                [Model.loss, Model.accuracy[1], Model.auc[1], merged_loss],
+                [Model.loss, Model.accuracy[1],
+                 Model.auc[1], merged_loss],
                 feed_dict={
                     Model.inputs: inputs,
                     Model.targets: targets,
@@ -193,7 +202,7 @@ with tf.Session() as sess:
                        Model.targets: targets,
                        Model.target_ids: target_ids,
                        Model.keep_prob: 1.0})
-        print("Epoch {},  Loss: {:.3f},  Accuracy: {:.3f},  AUC: {:.3f} (valid)"
+        print("Epoch {},  Loss: {:.3f},  Accuracy: {:.3f}, AUC: {:.3f} (valid)"
               .format(epoch, loss, accuracy, auc))
 
         valid_writer.add_summary(summary_loss, epoch)

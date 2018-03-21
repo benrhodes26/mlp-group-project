@@ -91,7 +91,7 @@ class LstmModel:
                                                      dtype=tf.float32)
 
             if n_hidden_layers > 1:
-                cells = [cell for layer in n_hidden_layers]
+                cells = [cell for layer in range(n_hidden_layers)]
                 cell = tf.nn.rnn_cell.MultiRNNCell(cells)
 
             self.outputs, self.state = tf.nn.dynamic_rnn(cell=cell,
@@ -157,8 +157,8 @@ class LstmModel:
             if clip_norm:
                 # grads, _ = tf.clip_by_global_norm(grads, clip_norm)
                 grads = [tf.clip_by_norm(grad, clip_norm) for grad in grads]
-            #if add_gradient_noise:
-            #    grads = [self.add_noise(g) for g in grads]
+            # if add_gradient_noise:
+            #     grads = [self.add_noise(g) for g in grads]
 
             self.grads_and_vars = list(zip(grads, trainable_vars))
             self.training = optimizer.apply_gradients(
@@ -173,6 +173,7 @@ class LstmModel:
 
         self.auc = tf.metrics.auc(labels=self.targets,
                                   predictions=self.predictions,
+                                  num_thresholds=500,
                                   name="auc")
 
         self.summary_aucacc = [

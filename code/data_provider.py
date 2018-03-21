@@ -8,6 +8,7 @@ data points.
 import numpy as np
 import os
 import scipy.sparse as sp
+import warnings
 
 from sklearn.model_selection import KFold
 DEFAULT_SEED = 22012018
@@ -34,8 +35,7 @@ class DataProvider(object):
                 the data before each epoch.
             rng (RandomState): A seeded random number generator.
         """
-        self.inputs = inputs
-        self.targets = targets
+        self._inputs, self.targets = self.semi_sorted_data(inputs, targets)
         if batch_size < 1:
             raise ValueError('batch_size must be >= 1')
         self._batch_size = batch_size
@@ -49,6 +49,17 @@ class DataProvider(object):
             rng = np.random.RandomState(DEFAULT_SEED)
         self.rng = rng
         self.new_epoch()
+
+    @property
+    def inputs(self):
+        """Number of data points to include in each batch."""
+        return self._inputs
+
+    @inputs.setter
+    def inputs(self, value):
+        self._inputs = value
+        self._current_order = np.arange(value.shape[0])
+        self._update_num_batches()
 
     @property
     def batch_size(self):
@@ -133,6 +144,15 @@ class DataProvider(object):
         targets_batch = self.targets[batch_slice]
         self._curr_batch += 1
         return inputs_batch, targets_batch
+
+    def semi_sorted_data(self, inputs, targets):
+        num_ans_per_student = np.array([len(i) for i in targets])
+        sorted_inds = np.argsort(num_ans_per_student)
+
+        sorted_inputs = inputs[sorted_inds]
+        sorted_targets = targets[sorted_inds]
+
+        return sorted_inputs, sorted_targets
 
 
 class ASSISTDataProvider(DataProvider):
@@ -321,7 +341,7 @@ class ASSISTDataProvider(DataProvider):
         self.targets = self.targets[perm]
         self.target_ids = self.target_ids[perm]
 
-    def _get_k_folds(self, k, threshold):
+    def _get_k_folds(self, k):
         """ Returns k pairs of DataProviders: (train_data_provider, val_data_provider)
         where the data split in each tuple is determined by k-fold cross val."""
 
@@ -340,29 +360,18 @@ class ASSISTDataProvider(DataProvider):
             targets_train, targets_val = targets[train_index], targets[val_index]
             target_ids_train, targets_ids_val = target_ids[train_index], target_ids[val_index]
 
-            # break up a student's sequence (into threshold-sized chunks)
-            # *after* the train/val split since if we did it beforehand then the same
-            # students' data might be split across the two sets, which would make the
-            # validation set a bad proxy for the test set.
-            inputs_train, target_ids_train, targets_train, threshold = \
-                self.threshold_num_ans(inputs_train, target_ids_train,
-                                       targets_train, threshold)
-            inputs_val, targets_ids_val, targets_val, threshold = \
-                self.threshold_num_ans(inputs_val, targets_ids_val,
-                                       targets_val, threshold)
-
             train_data = {
                 'inputs': inputs_train,
                 'targets': targets_train,
                 'target_ids': target_ids_train,
-                'max_num_ans': threshold,
+                'max_num_ans': self.max_num_ans,
                 'max_prob_set_id': self.max_prob_set_id,
                 'encoding_dim': self.encoding_dim}
             val_data = {
                 'inputs': inputs_val,
                 'targets': targets_val,
                 'target_ids': targets_ids_val,
-                'max_num_ans': threshold,
+                'max_num_ans': self.max_num_ans,
                 'max_prob_set_id': self.max_prob_set_id,
                 'encoding_dim': self.encoding_dim}
 
@@ -390,22 +399,26 @@ class ASSISTDataProvider(DataProvider):
                 shuffle_order=self.shuffle_order,
                 rng=self.rng,
                 data=val_data)
+
             yield (train_dp, val_dp)
 
-    def train_validation_split(self, threshold):
+    def train_validation_split(self, threshold=None):
         """Return 2 data providers with 80/20 data split
 
         Note, we break up a student's sequence (into threshold-sized chunks)
         *after* the train/val split since if we did it beforehand then the same
         students' data might be split across the two sets, which would make the
         validation set a bad proxy for the test set"""
-        for train, validation in self._get_k_folds(5, threshold):
+        for train, validation in self._get_k_folds(5):
             train_provider = train
             validation_provider = validation
+            if threshold:
+                train_provider.threshold_num_ans(threshold)
+                validation_provider.threshold_num_ans(threshold)
             break
         return train_provider, validation_provider
 
-    def threshold_num_ans(self, inputs, target_ids, targets, threshold):
+    def threshold_num_ans(self, threshold):
         """Split the data of each student into threshold*encoding_dim chunks.
 
         Rather than use the default max_num_ans*encoding_dim vector that contains all the
@@ -413,21 +426,22 @@ class ASSISTDataProvider(DataProvider):
         effectively treated as a new student. Note that since we have already right-padded
         student's data with zeros, some of these new chunks will be all zero, and can thus
         be discarded."""
+        if self.which_set == 'train':
+            warnings.warn('After thresholding, do not then call train_validation_split, '
+                          'since this will mix the same students data between train and val')
         threshold = min(self.max_num_ans, threshold)
-        num_students = inputs.shape[0]
+        num_students = self.inputs.shape[0]
 
-        inputs = self._threshold_inputs_or_ids(inputs,
-                                               self.encoding_dim,
-                                               num_students,
-                                               threshold)
-        target_ids = self._threshold_inputs_or_ids(target_ids,
-                                                   self.max_prob_set_id,
-                                                   num_students,
-                                                   threshold)
-        targets = self._threshold_targets(targets, threshold)
-        print('Number of effective students is now {}.'.format(inputs.shape[0]))
-
-        return inputs, target_ids, targets, threshold
+        self.inputs = self._threshold_inputs_or_ids(self.inputs,
+                                                    self.encoding_dim,
+                                                    num_students,
+                                                    threshold)
+        self.target_ids = self._threshold_inputs_or_ids(self.target_ids,
+                                                        self.max_prob_set_id,
+                                                        num_students,
+                                                        threshold)
+        self.targets = self._threshold_targets(self.targets, threshold)
+        self.max_num_ans = threshold
 
     def _threshold_targets(self, targets, threshold):
         new_targets = []
