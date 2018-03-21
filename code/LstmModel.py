@@ -85,14 +85,12 @@ class LstmModel:
                                                      output_keep_prob=self.keep_prob,
                                                      state_keep_prob=self.keep_prob,
                                                      variational_recurrent=self.var_dropout,
-                                                     dtype=tf.float32,
-                                                     initial_state = cell.zero_state(batch_size=self.batch_size, dtype=tf.float32))
+                                                     dtype=tf.float32)
             else:
                 # Only apply non-variational dropout to output connections
                 cell = tf.nn.rnn_cell.DropoutWrapper(cell,
                                                      output_keep_prob=self.keep_prob,
-                                                     dtype=tf.float32,
-                                                     initial_state = cell.zero_state(batch_size=self.batch_size, dtype=tf.float32))
+                                                     dtype=tf.float32)
 
             if n_hidden_layers > 1:
                 cells = [cell for layer in n_hidden_layers]
@@ -100,7 +98,9 @@ class LstmModel:
 
             self.outputs, self.state = tf.nn.dynamic_rnn(cell=cell,
                                                          inputs=self.inputs,
-                                                         dtype=tf.float32)
+                                                         dtype=tf.float32,
+                                                         initial_state=cell.zero_state(batch_size=self.batch_size,
+                                                                                       dtype=tf.float32))
 
         sigmoid_w = tf.get_variable(dtype=tf.float32,
                                     name="sigmoid_w",
