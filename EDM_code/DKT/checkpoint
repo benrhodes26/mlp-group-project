@@ -1,0 +1,2 @@
+model_checkpoint_path: "<tf.Variable \'global_step:0\' shape=() dtype=int32_ref>.ckpt"
+all_model_checkpoint_paths: "<tf.Variable \'global_step:0\' shape=() dtype=int32_ref>.ckpt"
