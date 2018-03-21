@@ -69,7 +69,7 @@ class StudentModel(object):
         inputs = self._input_data = tf.placeholder(tf.int32, [batch_size, num_steps])
         self._target_id = target_id = tf.placeholder(tf.int32, [None])
         self._target_correctness = target_correctness = tf.placeholder(tf.float32, [None])
-        final_hidden_size = size
+        final_hidden_size = int(size)
 
         hidden_layers = []
         for i in range(FLAGS.hidden_layer_num):
@@ -105,7 +105,7 @@ class StudentModel(object):
         #inputs = [tf.squeeze(input_, [1]) for input_ in tf.split(1, num_steps, inputs)]
         #outputs, state = tf.nn.rnn(hidden1, x, dtype=tf.float32)
         outputs, state = tf.nn.dynamic_rnn(cell, x, dtype=tf.float32)
-        output = tf.reshape(tf.concat(outputs,1), [-1, final_hidden_size])
+        output = tf.reshape(tf.concat(outputs,1), [-1, int(final_hidden_size)])
         # calculate the logits from last hidden layer to output layer
         sigmoid_w = tf.get_variable("sigmoid_w", [final_hidden_size, num_skills])
         sigmoid_b = tf.get_variable("sigmoid_b", [num_skills])
