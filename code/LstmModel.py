@@ -7,7 +7,7 @@ class LstmModel:
         return "LstmModel"
 
     def __init__(self, max_time_steps=973, feature_len=293,
-                 n_distinct_questions=146, var_dropout=True):
+                 n_distinct_questions=146, var_dropout=True, batch_size = 32):
         """Initialise task-specific parameters."""
         self.max_time_steps = max_time_steps
         self.feature_len = feature_len
@@ -18,26 +18,24 @@ class LstmModel:
         self.summary_loss = None
         self.summary_aucacc = None
         self.logit_list = []
+        self.batch_size = batch_size
 
     def build_graph(
             self,
             n_hidden_layers=1,
             n_hidden_units=200,
-            learning_rate=0.01,
-            clip_norm=10.0,
-            decay_exp=None,
+            clip_norm=5*1e-5,
             add_gradient_noise=1e-3,
-            decay_step=3000):
+            optimisation='adam'):
+
         self._build_model(n_hidden_layers=n_hidden_layers,
                           n_hidden_units=n_hidden_units)
-        self._build_training(learning_rate=learning_rate,
-                             decay_exp=decay_exp,
-                             clip_norm=clip_norm,
+        self._build_training(clip_norm=clip_norm,
                              add_gradient_noise=add_gradient_noise,
-                             decay_step=decay_step)
+                             optimisation=optimisation)
         self._build_metrics()
 
-    def _build_model(self, n_hidden_layers=1, n_hidden_units=200):
+    def _build_model(self, n_hidden_layers=2, n_hidden_units=200):
         """Build a TensorFlow computational graph for an LSTM network.
 
         Model based on "DKT paper" (see section 3):
@@ -55,8 +53,6 @@ class LstmModel:
             A single hidden layer was used in DKT paper
         n_hidden_units : int (default=200)
             200 hidden units were used in DKT paper
-        keep_prob : float in [0, 1] (default=1.0)
-            Probability a unit is kept in dropout layer
         """
         tf.reset_default_graph()
 
@@ -79,29 +75,32 @@ class LstmModel:
         self.keep_prob = tf.placeholder_with_default(1.0, shape=(),
                                                      name='keep_prob')
         # with tf.variable_scope('RNN', initializer=tf.contrib.layers.xavier_initializer()):
-        # with tf.variable_scope('RNN', initializer=tf.random_uniform_initializer(-0.5, 0.5)):
+        # todo worry about initialisation?
+        with tf.variable_scope('RNN', initializer=tf.random_uniform_initializer(-0.005, 0.005)):
             # model. LSTM layer(s) then linear layer (softmax applied in loss)
-        cell = tf.nn.rnn_cell.BasicLSTMCell(n_hidden_units)
+            cell = tf.nn.rnn_cell.BasicLSTMCell(n_hidden_units)
 
-        if self.var_dropout:
-            cell = tf.nn.rnn_cell.DropoutWrapper(cell,
-                                                 output_keep_prob=self.keep_prob,
-                                                 state_keep_prob=self.keep_prob,
-                                                 variational_recurrent=self.var_dropout,
-                                                 dtype=tf.float32)
-        else:
-            # Only apply non-variational dropout to output connections
-            cell = tf.nn.rnn_cell.DropoutWrapper(cell,
-                                                 output_keep_prob=self.keep_prob,
-                                                 dtype=tf.float32)
+            if self.var_dropout:
+                cell = tf.nn.rnn_cell.DropoutWrapper(cell,
+                                                     output_keep_prob=self.keep_prob,
+                                                     state_keep_prob=self.keep_prob,
+                                                     variational_recurrent=self.var_dropout,
+                                                     dtype=tf.float32,
+                                                     initial_state = cell.zero_state(batch_size=self.batch_size, dtype=tf.float32))
+            else:
+                # Only apply non-variational dropout to output connections
+                cell = tf.nn.rnn_cell.DropoutWrapper(cell,
+                                                     output_keep_prob=self.keep_prob,
+                                                     dtype=tf.float32,
+                                                     initial_state = cell.zero_state(batch_size=self.batch_size, dtype=tf.float32))
 
-        if n_hidden_layers > 1:
-            cells = [cell for layer in n_hidden_layers]
-            cell = tf.nn.rnn_cell.MultiRNNCell(cells)
+            if n_hidden_layers > 1:
+                cells = [cell for layer in n_hidden_layers]
+                cell = tf.nn.rnn_cell.MultiRNNCell(cells)
 
-        self.outputs, self.state = tf.nn.dynamic_rnn(cell=cell,
-                                                     inputs=self.inputs,
-                                                     dtype=tf.float32)
+            self.outputs, self.state = tf.nn.dynamic_rnn(cell=cell,
+                                                         inputs=self.inputs,
+                                                         dtype=tf.float32)
 
         sigmoid_w = tf.get_variable(dtype=tf.float32,
                                     name="sigmoid_w",
@@ -128,9 +127,8 @@ class LstmModel:
         logit_dic = {'logits':self.logits, 'logit2':logits2, 'target_ids':self.target_ids, 'target':self.targets, 'prediction':self.predictions, 'original_logits':original_logits}
         self.logit_list.append(logit_dic)
 
-    def _build_training(self, learning_rate=0.001, decay_exp=None,
-                        clip_norm=10.0, add_gradient_noise=1e-3,
-                        decay_step=3000):
+    def _build_training(self, clip_norm=5*1e-5, add_gradient_noise=1e-3,
+                        optimisation='adam'):
         """Define parameters updates.
 
         Applies exponential learning rate decay (optional). See:
@@ -149,26 +147,34 @@ class LstmModel:
         # track number of batches seen
         self.global_step = tf.Variable(0, name="global_step", trainable=False)
 
-        if decay_exp:  # decay every 3000 batches, roughly 2 epochs on 2015 data
-            learning_rate = tf.train.exponential_decay(
-                learning_rate=learning_rate, global_step=self.global_step,
-                decay_rate=decay_exp, decay_steps=decay_step, staircase=True)
+        self.learning_rate = tf.placeholder_with_default(1.0, shape=(),
+                                                         name='learning_rate')
 
         update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
         with tf.control_dependencies(update_ops):
             # Ensures that we execute the update_ops before performing the
             # train_step
-            optimizer = tf.train.AdamOptimizer(learning_rate=learning_rate)
-            grads, trainable_vars = zip(*optimizer.compute_gradients(self.loss))
+
+            if optimisation == 'adam':
+                optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate)
+            elif optimisation == 'rmsprop':
+                optimizer = tf.train.RMSPropOptimizer(learning_rate=self.learning_rate)
+            elif optimisation == 'momentum':
+                optimizer = tf.train.MomentumOptimizer(learning_rate=self.learning_rate, momentum=0.98)
+            elif optimisation == 'sgd':
+                optimizer = tf.train.GradientDescentOptimizer(learning_rate=self.learning_rate)
+
+            grads, trainable_vars = list(zip(*optimizer.compute_gradients(self.loss)))
 
             if clip_norm:
                 # grads, _ = tf.clip_by_global_norm(grads, clip_norm)
                 grads = [tf.clip_by_norm(grad, clip_norm) for grad in grads]
-            if add_gradient_noise:
-                grads = [self.add_noise(g) for g in grads]
+            #if add_gradient_noise:
+            #    grads = [self.add_noise(g) for g in grads]
 
+            self.grads_and_vars = list(zip(grads, trainable_vars))
             self.training = optimizer.apply_gradients(
-                zip(grads, trainable_vars),
+                self.grads_and_vars,
                 global_step=self.global_step)
 
     def _build_metrics(self):

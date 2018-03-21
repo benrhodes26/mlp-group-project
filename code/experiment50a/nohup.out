@@ -1,0 +1,10 @@
+Obtaining renewable credentials, you will be asked to type in your password
+Password for s1758150@INF.ED.AC.UK: 
+Running job "sbatch experiment50a.sh" for maximum of 28 days in background
+Waiting for job to start...
+sbatch: error: Unable to open file experiment50a.sh
+cat: /tmp/lrj.pid.5413: No such file or directory
+Usage: /bin/grep [OPTION]... PATTERN [FILE]...
+Try '/bin/grep --help' for more information.
+Job ran for less than 10 seconds. Problem?
+/bin/rm: cannot remove '/tmp/lrj.pid.5413': No such file or directory
