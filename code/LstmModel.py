@@ -93,7 +93,7 @@ class LstmModel:
                                                      dtype=tf.float32)
 
             if n_hidden_layers > 1:
-                cells = [cell for layer in n_hidden_layers]
+                cells = [cell for layer in range(n_hidden_layers)]
                 cell = tf.nn.rnn_cell.MultiRNNCell(cells)
 
             self.outputs, self.state = tf.nn.dynamic_rnn(cell=cell,
