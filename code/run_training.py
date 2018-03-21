@@ -18,10 +18,9 @@ START_TIME = strftime('%Y%m%d-%H%M', gmtime())
 
 
 LEARNING_RATES = [30.0, 30.0, 30.0, 10.0, 10.0, 10.0, 5.0, 5.0, 5.0]
-LEARNING_RATE_REPEATS = 4
 MIN_LEARNING_RATE = 1
 
-def GetLearningRate(epochIndex):
+def GetLearningRate(epochIndex, LEARNING_RATE_REPEATS):
     rate = MIN_LEARNING_RATE
     rateIndex = math.floor((epochIndex - 1) / LEARNING_RATE_REPEATS) + 1
     if rateIndex <=  len(LEARNING_RATES):
@@ -110,7 +109,7 @@ data_provider = ASSISTDataProvider(
 train_set, val_set = data_provider.train_validation_split()
 
 
-
+repeats = args.epochs/9 
 total_train_num = train_set.max_num_ans*train_set.num_batches
 total_valid_num = val_set.max_num_ans*val_set.num_batches
 
@@ -159,7 +158,7 @@ with tf.Session() as sess:
                                           args.lr_decay_step)
         '''
 
-        learning_rate = GetLearningRate(float(epoch))
+        learning_rate = GetLearningRate(float(epoch), repeats)
         print('Learning Rate : ', learning_rate)
         for i, (inputs, targets, target_ids) in enumerate(train_set):
             alpha = blob_size / total_train_num
