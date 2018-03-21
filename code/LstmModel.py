@@ -35,7 +35,7 @@ class LstmModel:
                              optimisation=optimisation)
         self._build_metrics()
 
-    def _build_model(self, n_hidden_layers=2, n_hidden_units=200):
+    def _build_model(self, n_hidden_layers=1, n_hidden_units=200):
         """Build a TensorFlow computational graph for an LSTM network.
 
         Model based on "DKT paper" (see section 3):

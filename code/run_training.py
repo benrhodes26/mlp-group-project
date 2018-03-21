@@ -40,6 +40,8 @@ parser.add_argument('--lr_exp_decay', type=float, default=(1 / 3),
                     help='fraction to multiply learning rate by each step')
 parser.add_argument('--num_hidden_units', type=int, default=200,
                     help='Number of hidden units in the LSTM cell')
+parser.add_argument('--num_hidden_layers', type=int, default=1,
+                    help='Number of hidden layers in the LSTM cell')
 parser.add_argument('--batch', type=int, default=32,
                     help='Batch size')
 parser.add_argument('--max_time_steps', type=int, default=100,
@@ -107,6 +109,7 @@ Model = LstmModel(max_time_steps=train_set.max_num_ans,
 print('Experiment started at', START_TIME)
 print("Building model...")
 Model.build_graph(n_hidden_units=args.num_hidden_units,
+                  n_hidden_layers=args.num_hidden_layers,
                   clip_norm=args.clip_norm,
                   # add_gradient_noise=args.add_gradient_noise,
                   optimisation=args.optimisation)
