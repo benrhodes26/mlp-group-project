@@ -26,6 +26,7 @@ parser.add_argument('--which_year', type=str, default='09',
                     help='Year of ASSIST data. Either 09 or 15')
 parser.add_argument('--restore', default=None,
                     help='Path to .ckpt file of model to continue training')
+
 parser.add_argument('--optimisation', type=str, default='sgd',
                     help='optimisation method. Choices are: adam, rmsprop, '
                          'momentum and sgd.')
@@ -39,6 +40,8 @@ parser.add_argument('--lr_exp_decay', type=float, default=(1 / 3),
                     help='fraction to multiply learning rate by each step')
 parser.add_argument('--num_hidden_units', type=int, default=200,
                     help='Number of hidden units in the LSTM cell')
+parser.add_argument('--num_hidden_layers', type=int, default=1,
+                    help='Number of hidden layers in the LSTM cell')
 parser.add_argument('--batch', type=int, default=32,
                     help='Batch size')
 parser.add_argument('--max_time_steps', type=int, default=100,
@@ -96,14 +99,17 @@ data_provider = ASSISTDataProvider(
     fraction=args.fraction)
 train_set, val_set = data_provider.train_validation_split(args.max_time_steps)
 
+
 Model = LstmModel(max_time_steps=train_set.max_num_ans,
                   feature_len=train_set.encoding_dim,
                   n_distinct_questions=train_set.max_prob_set_id,
-                  var_dropout=args.var_dropout)
+                  var_dropout=args.var_dropout,
+                  batch_size=args.batch)
 
 print('Experiment started at', START_TIME)
 print("Building model...")
 Model.build_graph(n_hidden_units=args.num_hidden_units,
+                  n_hidden_layers=args.num_hidden_layers,
                   clip_norm=args.clip_norm,
                   # add_gradient_noise=args.add_gradient_noise,
                   optimisation=args.optimisation)
@@ -128,20 +134,23 @@ with tf.Session() as sess:
         # Train one epoch!
         sess.run(Model.auc_init)
         sess.run(Model.acc_init)
+        total_sum = 0
+        total_num = 0
         learning_rate = get_learning_rate(epoch,
                                           args.init_learn_rate,
                                           args.min_learn_rate,
                                           args.lr_exp_decay,
                                           args.lr_decay_step)
         for i, (inputs, targets, target_ids) in enumerate(train_set):
-            _, loss, acc_update, auc_update, summary_loss = sess.run(
+            _, loss, acc_update, auc_update, summary_loss,logit_list = sess.run(
                 [Model.training, Model.loss, Model.accuracy[1], Model.auc[1],
-                 merged_loss],
+                 merged_loss,Model.logit_list],
                 feed_dict={Model.inputs: inputs,
                            Model.targets: targets,
                            Model.target_ids: target_ids,
                            Model.learning_rate: learning_rate,
                            Model.keep_prob: float(args.keep_prob)})
+
 
             if args.log_stats and epoch % 10 == 0 and i == 0:
                 # optional logging for debugging.
@@ -163,6 +172,7 @@ with tf.Session() as sess:
         print(
             "Epoch {},  Loss: {:.3f},  Accuracy: {:.3f},  AUC: {:.3f} (train)"
                 .format(epoch, loss, accuracy, auc))
+
 
         train_writer.add_summary(summary_loss, epoch)
         train_writer.add_summary(summary_aucacc, epoch)
@@ -187,14 +197,14 @@ with tf.Session() as sess:
                     Model.targets: targets,
                     Model.target_ids: target_ids})
 
-        accuracy, auc, summary_aucacc = sess.run(
-            [Model.accuracy[0], Model.auc[0], merged_aucacc],
-            feed_dict={Model.inputs: inputs,
-                       Model.targets: targets,
-                       Model.target_ids: target_ids,
-                       Model.keep_prob: 1.0})
+            accuracy, auc, summary_aucacc = sess.run(
+                [Model.accuracy[0], Model.auc[0], merged_aucacc],
+                feed_dict={Model.inputs: inputs,
+                           Model.targets: targets,
+                           Model.target_ids: target_ids,
+                           Model.keep_prob: 1.0})
         print("Epoch {},  Loss: {:.3f},  Accuracy: {:.3f},  AUC: {:.3f} (valid)"
-              .format(epoch, loss, accuracy, auc))
+                .format(epoch,loss, accuracy, auc))
 
         valid_writer.add_summary(summary_loss, epoch)
         valid_writer.add_summary(summary_aucacc, epoch)

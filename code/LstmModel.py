@@ -7,7 +7,7 @@ class LstmModel:
         return "LstmModel"
 
     def __init__(self, max_time_steps=973, feature_len=293,
-                 n_distinct_questions=146, var_dropout=True):
+                 n_distinct_questions=146, var_dropout=True, batch_size = 32):
         """Initialise task-specific parameters."""
         self.max_time_steps = max_time_steps
         self.feature_len = feature_len
@@ -17,6 +17,8 @@ class LstmModel:
         self.auc_init = None
         self.summary_loss = None
         self.summary_aucacc = None
+        self.logit_list = []
+        self.batch_size = batch_size
 
     def build_graph(
             self,
@@ -83,12 +85,14 @@ class LstmModel:
                                                      output_keep_prob=self.keep_prob,
                                                      state_keep_prob=self.keep_prob,
                                                      variational_recurrent=self.var_dropout,
-                                                     dtype=tf.float32)
+                                                     dtype=tf.float32,
+                                                     initial_state = cell.zero_state(batch_size=self.batch_size, dtype=tf.float32))
             else:
                 # Only apply non-variational dropout to output connections
                 cell = tf.nn.rnn_cell.DropoutWrapper(cell,
                                                      output_keep_prob=self.keep_prob,
-                                                     dtype=tf.float32,, initial_state = cell.zero_state(100, dtype=tf.float32))
+                                                     dtype=tf.float32,
+                                                     initial_state = cell.zero_state(batch_size=self.batch_size, dtype=tf.float32))
 
             if n_hidden_layers > 1:
                 cells = [cell for layer in n_hidden_layers]
@@ -113,8 +117,15 @@ class LstmModel:
 
         logits = tf.matmul(self.outputs, sigmoid_w) + sigmoid_b
         logits = tf.reshape(logits, [-1])
+
+        original_logits =logits
         self.logits = tf.dynamic_partition(logits, self.target_ids, 2)[1]
+        logits2 = tf.dynamic_partition(logits, self.target_ids, 2)[0]
+
+        #####From Here######
         self.predictions = tf.round(tf.nn.sigmoid(self.logits))
+        logit_dic = {'logits':self.logits, 'logit2':logits2, 'target_ids':self.target_ids, 'target':self.targets, 'prediction':self.predictions, 'original_logits':original_logits}
+        self.logit_list.append(logit_dic)
 
     def _build_training(self, clip_norm=5*1e-5, add_gradient_noise=1e-3,
                         optimisation='adam'):
@@ -128,9 +139,10 @@ class LstmModel:
         https://www.tensorflow.org/versions/r0.12/api_docs/python/train
         /gradient_clipping
         """
-        loss_per_example = tf.nn.sigmoid_cross_entropy_with_logits(
+        loss_per_example = tf.nn.softmax_cross_entropy_with_logits(
             logits=self.logits, labels=self.targets)
         self.loss = tf.reduce_mean(loss_per_example)
+        #####To Here######
         self.summary_loss = [tf.summary.scalar('loss', self.loss)]
         # track number of batches seen
         self.global_step = tf.Variable(0, name="global_step", trainable=False)

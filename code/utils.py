@@ -23,6 +23,7 @@ def events_to_numpy(event_file):
     for event in tf.train.summary_iterator(event_file):
         for v in event.summary.value:
             if v.tag == 'loss' or v.tag == 'accuracy' or v.tag == 'auc_1':
+
                 event_triple.append(v.simple_value)
 
         if len(event_triple) == 3:
