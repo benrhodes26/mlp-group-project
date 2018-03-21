@@ -41,6 +41,8 @@ parser.add_argument('--num_hidden_units', type=int, default=200,
                     help='Number of hidden units in the LSTM cell')
 parser.add_argument('--batch', type=int, default=32,
                     help='Batch size')
+parser.add_argument('--max_time_steps', type=int, default=100,
+                    help='limit length of students sequences of answers')
 parser.add_argument('--epochs', type=int, default=100,
                     help='Number of training epochs')
 parser.add_argument('--decay', type=float, default=0.96,
@@ -69,9 +71,9 @@ parser.add_argument('--no-compressed_sensing', dest='compressed_sensing', action
                     help='do not use use compressed sensing')
 parser.set_defaults(compressed_sensing=False)
 parser.add_argument('--log_stats', dest='log_stats', action='store_true',
-                    help='print learning rate and gradient norms once an epoch')
+                    help='print learning rate and gradient norms once every 10 epochs')
 parser.add_argument('--no-log_stats', dest='log_stats', action='store_false',
-                    help='do not print learning rate and gradient norms once an epoch')
+                    help='do not print learning rate and gradient norms once every 10 epochs')
 parser.set_defaults(log_stats=False)
 parser.add_argument('--fraction', type=float, default=1.0,
                     help='Fraction of data to use. Useful for hyperparameter tuning')
@@ -92,7 +94,7 @@ data_provider = ASSISTDataProvider(
     use_plus_minus_feats=args.plus_minus_feats,
     use_compressed_sensing=args.compressed_sensing,
     fraction=args.fraction)
-train_set, val_set = data_provider.train_validation_split()
+train_set, val_set = data_provider.train_validation_split(args.max_time_steps)
 
 Model = LstmModel(max_time_steps=train_set.max_num_ans,
                   feature_len=train_set.encoding_dim,
@@ -141,7 +143,7 @@ with tf.Session() as sess:
                            Model.learning_rate: learning_rate,
                            Model.keep_prob: float(args.keep_prob)})
 
-            if args.log_stats and i == 0:
+            if args.log_stats and epoch % 10 == 0 and i == 0:
                 # optional logging for debugging.
                 print("learning rate is: {}".format(learning_rate))
                 for gv in Model.grads_and_vars:
