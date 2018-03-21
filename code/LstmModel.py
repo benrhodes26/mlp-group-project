@@ -78,29 +78,57 @@ class LstmModel:
         # todo worry about initialisation?
         with tf.variable_scope('RNN', initializer=tf.random_uniform_initializer(-0.005, 0.005)):
             # model. LSTM layer(s) then linear layer (softmax applied in loss)
-            cell = tf.nn.rnn_cell.BasicLSTMCell(n_hidden_units)
 
-            if self.var_dropout:
-                cell = tf.nn.rnn_cell.DropoutWrapper(cell,
-                                                     output_keep_prob=self.keep_prob,
-                                                     state_keep_prob=self.keep_prob,
-                                                     variational_recurrent=self.var_dropout,
-                                                     dtype=tf.float32)
+            if n_hidden_layers == 1:
+                cell = tf.nn.rnn_cell.BasicLSTMCell(n_hidden_units)
+
+                if self.var_dropout:
+                    cell = tf.nn.rnn_cell.DropoutWrapper(cell,
+                                                         output_keep_prob=self.keep_prob,
+                                                         state_keep_prob=self.keep_prob,
+                                                         variational_recurrent=self.var_dropout,
+                                                         dtype=tf.float32)
+                else:
+                    # Only apply non-variational dropout to output connections
+                    cell = tf.nn.rnn_cell.DropoutWrapper(cell,
+                                                         output_keep_prob=self.keep_prob,
+                                                         dtype=tf.float32)
+
+                self.outputs, self.state = tf.nn.dynamic_rnn(cell=cell,
+                                                             inputs=self.inputs,
+                                                             dtype=tf.float32,
+                                                             initial_state=cell.zero_state(batch_size=self.batch_size,
+                                                                                           dtype=tf.float32))
+
             else:
-                # Only apply non-variational dropout to output connections
-                cell = tf.nn.rnn_cell.DropoutWrapper(cell,
-                                                     output_keep_prob=self.keep_prob,
-                                                     dtype=tf.float32)
+                init_state = tf.placeholder(tf.float32,
+                                            [n_hidden_layers, 2, self.batch_size, n_hidden_units])
+                state_per_layer_list = tf.unpack(init_state, axis=0)
+                state_list = [tf.nn.rnn_cell.LSTMStateTuple(state_per_layer_list[i][0],
+                                                            state_per_layer_list[i][1])
+                                                            for i in range(n_hidden_layers)]
+                rnn_tuple_state = tuple(state_list)
 
-            if n_hidden_layers > 1:
+
+                cell = tf.nn.rnn_cell.BasicLSTMCell(n_hidden_units, state_is_tuple=True)
+                if self.var_dropout:
+                    cell = tf.nn.rnn_cell.DropoutWrapper(cell,
+                                                         output_keep_prob=self.keep_prob,
+                                                         state_keep_prob=self.keep_prob,
+                                                         variational_recurrent=self.var_dropout,
+                                                         dtype=tf.float32)
+                else:
+                    # Only apply non-variational dropout to output connections
+                    cell = tf.nn.rnn_cell.DropoutWrapper(cell,
+                                                         output_keep_prob=self.keep_prob,
+                                                         dtype=tf.float32)
                 cells = [cell for layer in range(n_hidden_layers)]
-                cell = tf.nn.rnn_cell.MultiRNNCell(cells)
+                cell = tf.nn.rnn_cell.MultiRNNCell(cells, state_is_tuple=True)
+                self.outputs, self.state = tf.nn.dynamic_rnn(cell=cell,
+                                                             inputs=self.inputs,
+                                                             dtype=tf.float32,
+                                                             initial_state=rnn_tuple_state)
 
-            self.outputs, self.state = tf.nn.dynamic_rnn(cell=cell,
-                                                         inputs=self.inputs,
-                                                         dtype=tf.float32,
-                                                         initial_state=cell.zero_state(batch_size=self.batch_size,
-                                                                                       dtype=tf.float32))
 
         sigmoid_w = tf.get_variable(dtype=tf.float32,
                                     name="sigmoid_w",
