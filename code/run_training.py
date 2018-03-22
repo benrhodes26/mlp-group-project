@@ -71,24 +71,12 @@ parser.add_argument('--keep_prob', type=float, default=0.6,
                     help='Fraction to keep in dropout applied to LSTM cell')
 parser.add_argument('--var_dropout', dest='var_dropout', action='store_true',
                     help='use variational dropout')
-parser.add_argument('--no-var_dropout', dest='var_dropout', action='store_false',
-                    help='do not use variational dropout')
-parser.set_defaults(var_dropout=True)
 parser.add_argument('--plus_minus_feats', dest='plus_minus_feats', action='store_true',
                     help='use +/- for feature encoding')
-parser.add_argument('--no-plus_minus_feats', dest='plus_minus_feats', action='store_false',
-                    help='do not use +/- for feature encoding')
-parser.set_defaults(plus_minus_feats=False)
 parser.add_argument('--compressed_sensing', dest='compressed_sensing', action='store_true',
                     help='use compressed sensing')
-parser.add_argument('--no-compressed_sensing', dest='compressed_sensing', action='store_false',
-                    help='do not use use compressed sensing')
-parser.set_defaults(compressed_sensing=False)
-parser.add_argument('--log_stats', dest='log_stats', action='store_true',
-                    help='print learning rate and gradient norms once an epoch')
 parser.add_argument('--no-log_stats', dest='log_stats', action='store_false',
                     help='do not print learning rate and gradient norms once an epoch')
-parser.set_defaults(log_stats=False)
 parser.add_argument('--fraction', type=float, default=1.0,
                     help='Fraction of data to use. Useful for hyperparameter tuning')
 parser.add_argument('--name', type=str, default=START_TIME,
@@ -111,7 +99,7 @@ data_provider = ASSISTDataProvider(
 train_set, val_set = data_provider.train_validation_split(threshold=args.threshold)
 
 
-repeats = args.epochs/9 
+repeats = args.epochs/9
 total_train_num = train_set.max_num_ans*train_set.num_batches
 total_valid_num = val_set.max_num_ans*val_set.num_batches
 '''
@@ -189,7 +177,6 @@ with tf.Graph().as_default():
             print("Model restored!")
 
 
-
         print("Starting training...")
         for epoch in range(args.epochs):
             # Train one epoch!
@@ -215,7 +202,6 @@ with tf.Graph().as_default():
                                TrainModel.target_ids: target_ids,
                                TrainModel.learning_rate: learning_rate,
                                TrainModel.keep_prob: float(args.keep_prob)})
-
 
 
                 if args.log_stats and i == 0:
@@ -320,4 +306,3 @@ with tf.Graph().as_default():
         plt.ylabel('Accuracy')
         plt.title('Accuracy per epoch')
         plt.savefig(SAVE_DIR + '/accuracy.png')
-
