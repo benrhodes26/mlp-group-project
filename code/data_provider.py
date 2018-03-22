@@ -35,16 +35,17 @@ class DataProvider(object):
                 the data before each epoch.
             rng (RandomState): A seeded random number generator.
         """
-        self._inputs, self.targets = self.semi_sorted_data(inputs, targets)
         if batch_size < 1:
             raise ValueError('batch_size must be >= 1')
         self._batch_size = batch_size
         if max_num_batches == 0 or max_num_batches < -1:
             raise ValueError('max_num_batches must be -1 or > 0')
         self._max_num_batches = max_num_batches
+        self.inputs = inputs
+        self.targets = targets
         self._update_num_batches()
-        self.shuffle_order = shuffle_order
         self._current_order = np.arange(inputs.shape[0])
+        self.shuffle_order = shuffle_order
         if rng is None:
             rng = np.random.RandomState(DEFAULT_SEED)
         self.rng = rng
@@ -145,15 +146,6 @@ class DataProvider(object):
         self._curr_batch += 1
         return inputs_batch, targets_batch
 
-    def semi_sorted_data(self, inputs, targets):
-        num_ans_per_student = np.array([len(i) for i in targets])
-        sorted_inds = np.argsort(num_ans_per_student)
-
-        sorted_inputs = inputs[sorted_inds]
-        sorted_targets = targets[sorted_inds]
-
-        return sorted_inputs, sorted_targets
-
 
 class ASSISTDataProvider(DataProvider):
     """Data provider for ASSISTments 2009/2015 student assessment data set."""
@@ -204,24 +196,56 @@ class ASSISTDataProvider(DataProvider):
         self.fraction = fraction
         self.use_plus_minus_feats = use_plus_minus_feats
         self.use_compressed_sensing = use_compressed_sensing
+        if batch_size < 1:
+            raise ValueError('batch_size must be >= 1')
+        self._batch_size = batch_size
+        if max_num_batches == 0 or max_num_batches < -1:
+            raise ValueError('max_num_batches must be -1 or > 0')
+        self._max_num_batches = max_num_batches
+        self.process_and_set_data(data, data_path, fraction,
+                                  rng, use_compressed_sensing,
+                                  use_plus_minus_feats)
+        self.sort_and_batch_data()
+        self._update_num_batches()
+        self._current_order = np.arange(len(self.batched_inputs))
+        self.shuffle_order = shuffle_order
+        if rng is None:
+            rng = np.random.RandomState(DEFAULT_SEED)
+        self.rng = rng
+        self.new_epoch()
 
+    def sort_and_batch_data(self):
+        num_ans_per_student = np.array([len(i) for i in self.targets])
+        sorted_inds = np.argsort(num_ans_per_student)
+        sorted_inputs = self.inputs[sorted_inds]
+        sorted_targets = self.targets[sorted_inds]
+        sorted_target_ids = self.target_ids[sorted_inds]
+
+        num_students = sorted_inputs.shape[0]
+        self.batched_inputs = []
+        self.batched_targets = []
+        self.batched_target_ids = []
+        for i in range(0, num_students, self.batch_size):
+            self.batched_inputs.append(sorted_inputs[i:i+self.batch_size])
+            self.batched_targets.append(sorted_targets[i:i+self.batch_size])
+            self.batched_target_ids.append(sorted_target_ids[i:i+self.batch_size])
+
+    def process_and_set_data(self, data, data_path, fraction, rng,
+                             use_compressed_sensing, use_plus_minus_feats):
+        """Store data attributes, either using dictionary or loading from file"""
         if data:
-            inputs, targets, self.target_ids = data['inputs'], \
-                data['targets'], data['target_ids']
-            self.max_num_ans, self.max_prob_set_id = data['max_num_ans'],\
-                data['max_prob_set_id']
+            self._inputs, self.targets, self.target_ids = data['inputs'], \
+                                               data['targets'], data['target_ids']
+            self.max_num_ans, self.max_prob_set_id = data['max_num_ans'], \
+                                                     data['max_prob_set_id']
             self.encoding_dim = data['encoding_dim']
         else:
-            inputs, targets = self.load_data(data_path, use_plus_minus_feats)
-            inputs, targets = self.reduce_data(inputs, targets, fraction)
+            self.load_data_from_file(data_path, use_plus_minus_feats)
+            self.reduce_data(fraction)
             if use_compressed_sensing:
-                inputs = self.apply_compressed_sensing(inputs, rng)
+                self.apply_compressed_sensing(rng)
 
-        # pass the loaded data to the parent class __init__
-        super(ASSISTDataProvider, self).__init__(
-            inputs, targets, batch_size, max_num_batches, shuffle_order, rng)
-
-    def apply_compressed_sensing(self, inputs, rng):
+    def apply_compressed_sensing(self, rng):
         """Map input features (of length 'encoding_dim') down to a randomly generated
         vector sampled from a standard gaussian in a lower dimensional space. If this
         is test time, load training matrix from file. If train time, make the matrix.
@@ -237,8 +261,11 @@ class ASSISTDataProvider(DataProvider):
         elif self.which_set == 'train':
             self.compress_matrix = self.make_compression_matrix(train_path, rng)
 
-        inputs = self.compress_inputs(inputs)
-        return inputs
+        num_students = self.inputs.shape[0]
+        inputs = self.inputs.toarray()
+        inputs = np.dot(inputs.reshape(-1, self.encoding_dim), self.compress_matrix)
+        self.encoding_dim = self.compress_dim
+        self._inputs = sp.csr_matrix(inputs.reshape(num_students, -1))
 
     def make_compression_matrix(self, train_path, rng):
         """Create matrix for mapping input features (of length 'encoding_dim') to
@@ -253,38 +280,26 @@ class ASSISTDataProvider(DataProvider):
         np.savez(train_path + '-compression-matrix', compress_matrix=compress_matrix)
         return compress_matrix
 
-    def compress_inputs(self, inputs):
-        """Apply compression matrix to inputs"""
-        num_students = inputs.shape[0]
-        inputs = inputs.toarray()
-        inputs = np.dot(inputs.reshape(-1, self.encoding_dim), self.compress_matrix)
-        self.encoding_dim = self.compress_dim
-
-        return sp.csr_matrix(inputs.reshape(num_students, -1))
-
-    def reduce_data(self, inputs, targets, fraction):
-        num_data = int(inputs.shape[0] * fraction)
-        inputs = inputs[:num_data]
-        targets = targets[:num_data]
+    def reduce_data(self, fraction):
+        num_data = int(self.inputs.shape[0] * fraction)
+        self._inputs = self._inputs[:num_data]
+        self.targets = self.targets[:num_data]
         self.target_ids = self.target_ids[:num_data]
-        return inputs, targets
 
-    def load_data(self, data_path, use_plus_minus_feats):
-        """ Load data from files, optionally reducing and/or compressing"""
+    def load_data_from_file(self, data_path, use_plus_minus_feats):
+        """ Load data from one of two files, depending on type"""
         loaded = np.load(data_path + '-targets.npz')
         self.max_num_ans = int(loaded['max_num_ans'])
         self.max_prob_set_id = int(loaded['max_prob_set_id'])
-        targets = loaded['targets']
+        self.targets = loaded['targets']
         if use_plus_minus_feats:
             print("using plus minus feats!!!")
-            inputs = sp.load_npz(data_path + '-inputs-plus-minus.npz')
+            self._inputs = sp.load_npz(data_path + '-inputs-plus-minus.npz')
             self.encoding_dim = self.max_prob_set_id + 1
         else:
-            inputs = sp.load_npz(data_path + '-inputs.npz')
+            self._inputs = sp.load_npz(data_path + '-inputs.npz')
             self.encoding_dim = 2 * self.max_prob_set_id + 1
         self.target_ids = sp.load_npz(data_path + '-targetids.npz')
-
-        return inputs, targets
 
     def next(self):
         """Returns next data batch or raises `StopIteration` if at end."""
@@ -293,27 +308,25 @@ class ASSISTDataProvider(DataProvider):
             # new epoch ready for another pass and indicate iteration is at end
             self.new_epoch()
             raise StopIteration()
-        # create an index slice corresponding to current batch number
-        batch_slice = slice(self._curr_batch * self.batch_size,
-                            (self._curr_batch + 1) * self.batch_size)
-        inputs_batch = self.inputs[batch_slice]
-        targets_batch = self.targets[batch_slice]
-        # target_ids_global = self.target_ids[batch_slice]
-        target_ids_batch = self.target_ids[batch_slice]
+        batch_id = self._curr_batch
+        inputs_batch = self.batched_inputs[batch_id]
+        target_ids_batch = self.batched_target_ids[batch_id]
+        targets_batch = self.batched_targets[batch_id]
         self._curr_batch += 1
 
-        batch_inputs, batch_target_ids, batch_targets = \
+        batch_lengths = np.array([len(i) for i in targets_batch], dtype=np.int32)
+        batch_inputs, batch_target_ids, batch_targets,  = \
             self.transform_batch(inputs_batch, target_ids_batch, targets_batch)
 
-        return batch_inputs, batch_targets, batch_target_ids
+        return batch_inputs, batch_targets, batch_target_ids, batch_lengths
 
     def transform_batch(self, inputs_batch, target_ids_batch, targets_batch):
         """reshape batch of data ready to be processed by an RNN"""
         # extract one-hot encoded feature vectors and reshape them
         # so we can feed them to the RNN
         batch_inputs = inputs_batch.toarray()
-        batch_inputs = batch_inputs.reshape(
-            self.batch_size, self.max_num_ans, self.encoding_dim)
+        batch_inputs = batch_inputs.reshape(-1, self.max_num_ans,
+                                            self.encoding_dim)
         # targets_batch is a list of lists, which we need to flatten
         batch_targets = [i for sublist in targets_batch for i in sublist]
         batch_targets = np.array(batch_targets, dtype=np.float32)
@@ -328,18 +341,18 @@ class ASSISTDataProvider(DataProvider):
         """Resets the provider to the initial state."""
         inv_perm = np.argsort(self._current_order)
         self._current_order = self._current_order[inv_perm]
-        self.inputs = self.inputs[inv_perm]
-        self.targets = self.targets[inv_perm]
-        self.target_ids = self.target_ids[inv_perm]
+        self.batched_inputs = [self.batched_inputs[i] for i in inv_perm]
+        self.batched_targets = [self.batched_targets[i] for i in inv_perm]
+        self.batched_target_ids = [self.batched_target_ids[i] for i in inv_perm]
         self.new_epoch()
 
     def shuffle(self):
         """Randomly shuffles order of data."""
-        perm = self.rng.permutation(self.inputs.shape[0])
+        perm = self.rng.permutation(len(self.batched_inputs))
         self._current_order = self._current_order[perm]
-        self.inputs = self.inputs[perm]
-        self.targets = self.targets[perm]
-        self.target_ids = self.target_ids[perm]
+        self.batched_inputs = [self.batched_inputs[i] for i in perm]
+        self.batched_targets = [self.batched_targets[i] for i in perm]
+        self.batched_target_ids = [self.batched_target_ids[i] for i in perm]
 
     def _get_k_folds(self, k):
         """ Returns k pairs of DataProviders: (train_data_provider, val_data_provider)
@@ -413,12 +426,12 @@ class ASSISTDataProvider(DataProvider):
             train_provider = train
             validation_provider = validation
             if threshold:
-                train_provider.threshold_num_ans(threshold)
-                validation_provider.threshold_num_ans(threshold)
+                train_provider.threshold_num_ans(threshold, warn=False)
+                validation_provider.threshold_num_ans(threshold, warn=False)
             break
         return train_provider, validation_provider
 
-    def threshold_num_ans(self, threshold):
+    def threshold_num_ans(self, threshold, warn=True):
         """Split the data of each student into threshold*encoding_dim chunks.
 
         Rather than use the default max_num_ans*encoding_dim vector that contains all the
@@ -426,21 +439,24 @@ class ASSISTDataProvider(DataProvider):
         effectively treated as a new student. Note that since we have already right-padded
         student's data with zeros, some of these new chunks will be all zero, and can thus
         be discarded."""
-        if self.which_set == 'train':
+        if self.which_set == 'train' and warn:
             warnings.warn('After thresholding, do not then call train_validation_split, '
                           'since this will mix the same students data between train and val')
         threshold = min(self.max_num_ans, threshold)
-        num_students = self.inputs.shape[0]
 
-        self.inputs = self._threshold_inputs_or_ids(self.inputs,
-                                                    self.encoding_dim,
-                                                    num_students,
-                                                    threshold)
-        self.target_ids = self._threshold_inputs_or_ids(self.target_ids,
-                                                        self.max_prob_set_id,
-                                                        num_students,
-                                                        threshold)
-        self.targets = self._threshold_targets(self.targets, threshold)
+        # Apply the thresholding, one batch at a time
+        for i in range(len(self.batched_inputs)):
+            self.batched_inputs[i] = self._threshold_inputs_or_ids(
+                                              self.batched_inputs[i],
+                                              self.encoding_dim,
+                                              threshold)
+            self.batched_target_ids[i] = self._threshold_inputs_or_ids(
+                                          self.batched_target_ids[i],
+                                          self.max_prob_set_id,
+                                          threshold)
+            self.batched_targets[i] = self._threshold_targets(
+                                        self.batched_targets[i],
+                                        threshold)
         self.max_num_ans = threshold
 
     def _threshold_targets(self, targets, threshold):
@@ -448,12 +464,11 @@ class ASSISTDataProvider(DataProvider):
         for student in targets:
             for i in range(0, len(student), threshold):
                 new_targets.append(student[i:i + threshold])
-        return np.array(new_targets)
+        return new_targets
 
-    def _threshold_inputs_or_ids(self, input_or_id, final_dim,
-                                 num_students, threshold):
+    def _threshold_inputs_or_ids(self, input_or_id, final_dim, threshold):
         x = input_or_id.toarray()
-        x = x.reshape(num_students,
+        x = x.reshape(input_or_id.shape[0],
                       self.max_num_ans,
                       final_dim)
 
@@ -491,3 +506,14 @@ class ASSISTDataProvider(DataProvider):
         assert os.path.isfile(data_path + '-targets.npz'), (
                 'Data file does not exist at expected path: ' + data_path
         )
+
+    def _update_num_batches(self):
+        """Updates number of batches to iterate over."""
+        # maximum possible number of batches is equal to number of whole times
+        # batch_size divides in to the number of data points which can be
+        # found using integer division
+        possible_num_batches = len(self.batched_inputs)
+        if self.max_num_batches == -1:
+            self.num_batches = possible_num_batches
+        else:
+            self.num_batches = min(self.max_num_batches, possible_num_batches)

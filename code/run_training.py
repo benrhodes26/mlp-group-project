@@ -106,8 +106,8 @@ val_set = ASSISTDataProvider(
     use_compressed_sensing=args.compressed_sensing,
     fraction=args.fraction)
 
-train_set.threshold_num_ans(args.max_time_steps)
-val_set.threshold_num_ans(args.max_time_steps)
+train_set.threshold_num_ans(args.max_time_steps, warn=False)
+val_set.threshold_num_ans(args.max_time_steps, warn=False)
 
 Model = LstmModel(max_time_steps=train_set.max_num_ans,
                   feature_len=train_set.encoding_dim,
@@ -146,7 +146,7 @@ with tf.Session() as sess:
                                           args.min_learn_rate,
                                           args.lr_exp_decay,
                                           args.lr_decay_step)
-        for i, (inputs, targets, target_ids) in enumerate(train_set):
+        for i, (inputs, targets, target_ids, seq_lengths) in enumerate(train_set):
             _, loss, acc_update, auc_update, summary_loss = sess.run(
                 [Model.training, Model.loss,
                  Model.accuracy[1], Model.auc[1], merged_loss],
@@ -154,7 +154,8 @@ with tf.Session() as sess:
                            Model.targets: targets,
                            Model.target_ids: target_ids,
                            Model.learning_rate: learning_rate,
-                           Model.keep_prob: float(args.keep_prob)})
+                           Model.keep_prob: float(args.keep_prob),
+                           Model.seq_lengths: seq_lengths})
 
             if args.log_stats and epoch % 10 == 0 and i == 0:
                 # optional logging for debugging.
@@ -166,13 +167,11 @@ with tf.Session() as sess:
                                             Model.targets: targets,
                                             Model.target_ids: target_ids,
                                             Model.learning_rate: learning_rate,
-                                            Model.keep_prob: float(args.keep_prob)})
+                                            Model.keep_prob: float(args.keep_prob),
+                                            Model.seq_lengths: seq_lengths})
 
         accuracy, auc, summary_aucacc = sess.run(
-            [Model.accuracy[0], Model.auc[0], merged_aucacc],
-            feed_dict={Model.inputs: inputs,
-                       Model.targets: targets,
-                       Model.target_ids: target_ids})
+            [Model.accuracy[0], Model.auc[0], merged_aucacc])
         print(
             "Epoch {},  Loss: {:.3f},  Accuracy: {:.3f}, AUC: {:.3f} (train)"
             .format(epoch, loss, accuracy, auc))
@@ -187,21 +186,19 @@ with tf.Session() as sess:
         sess.run(Model.auc_init)
         sess.run(Model.acc_init)
 
-        for i, (inputs, targets, target_ids) in enumerate(val_set):
+        for i, (inputs, targets, target_ids, seq_lengths) in enumerate(val_set):
             loss, acc_update, auc_update, summary_loss = sess.run(
                 [Model.loss, Model.accuracy[1],
                  Model.auc[1], merged_loss],
                 feed_dict={
                     Model.inputs: inputs,
                     Model.targets: targets,
-                    Model.target_ids: target_ids})
+                    Model.target_ids: target_ids,
+                    Model.seq_lengths: seq_lengths})
 
         accuracy, auc, summary_aucacc = sess.run(
-            [Model.accuracy[0], Model.auc[0], merged_aucacc],
-            feed_dict={Model.inputs: inputs,
-                       Model.targets: targets,
-                       Model.target_ids: target_ids,
-                       Model.keep_prob: 1.0})
+            [Model.accuracy[0], Model.auc[0], merged_aucacc])
+
         print("Epoch {},  Loss: {:.3f},  Accuracy: {:.3f}, AUC: {:.3f} (valid)"
               .format(epoch, loss, accuracy, auc))
 
