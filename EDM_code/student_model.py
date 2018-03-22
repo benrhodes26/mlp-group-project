@@ -87,13 +87,17 @@ class StudentModel(object):
             labels = tf.expand_dims(input_data, 1)
             indices = tf.expand_dims(tf.range(0, batch_size*num_steps, 1), 1)
             concated = tf.concat([indices, labels],1)
-            #Fill empty space with 0
             inputs = tf.sparse_to_dense(concated, tf.stack([batch_size*num_steps, input_size]), 1.0, 0.0)
             inputs.set_shape([batch_size*num_steps, input_size])
 
         # [batch_size, num_steps, input_size]
         inputs = tf.reshape(inputs, [-1, num_steps, input_size])
+<<<<<<< HEAD
         x = tf.transpose(inputs, [0, 1,2])
+=======
+        x = inputs#tf.transpose(inputs, [0, 2])
+
+>>>>>>> ddff0a7ee8681cbdd836de3995bcda3a198ef659
 
         # Reshape to (n_steps*batch_size, n_input)
         #x = tf.reshape(x, [-1, input_size])
@@ -101,6 +105,8 @@ class StudentModel(object):
         # Split to get a list of 'n_steps'
         # tensors of shape (doc_num, n_input)
         #x = tf.split(x, num_steps, axis=0)
+
+        #print(len(x))
 
         #inputs = [tf.squeeze(input_, [1]) for input_ in tf.split(1, num_steps, inputs)]
         #outputs, state = tf.nn.rnn(hidden1, x, dtype=tf.float32)
@@ -167,11 +173,11 @@ class StudentModel(object):
 class HyperParamsConfig(object):
     """Small config."""
     init_scale = 0.05
-    num_steps = 0
+    num_steps = 10
     max_grad_norm = FLAGS.max_grad_norm
     max_max_epoch = FLAGS.epochs
     keep_prob = FLAGS.keep_prob
-    num_skills = 0
+    num_skills = 124
 
 def run_epoch(session, m, students, eval_op, verbose=False):
     """Runs the model on the given data."""
@@ -296,12 +302,13 @@ def main(unused_args):
             # testing model
             with tf.variable_scope("model", reuse=True, initializer=initializer):
                 mtest = StudentModel(is_training=False, config=eval_config)
-
+#############################Traninig part###################################
             grads_and_vars = optimizer.compute_gradients(m.cost)
             grads_and_vars = [(tf.clip_by_norm(g, FLAGS.max_grad_norm), v)
                               for g, v in grads_and_vars if g is not None]
             grads_and_vars = [(add_gradient_noise(g), v) for g, v in grads_and_vars]
             train_op = optimizer.apply_gradients(grads_and_vars, name="train_op", global_step=global_step)
+##############################################################################
             session.run(tf.initialize_all_variables())
             # log hyperparameters to results file
             with open(result_file_path, "a+") as f:
@@ -321,8 +328,13 @@ def main(unused_args):
                     save_file = "{}/{}.ckpt".format(model_name, global_step)
                     save_path = saver.save(session, save_file)
 
+<<<<<<< HEAD
                 if((i+1) % FLAGS.evaluation_interval == 0):
                     print("Save variables to disk")
+=======
+                if((i+1) % FLAGS.evaluation_interval == 0) or i==0:
+                    print "Save variables to disk"
+>>>>>>> ddff0a7ee8681cbdd836de3995bcda3a198ef659
                     save_file = "{}/{}.ckpt".format(model_name, global_step)
                     save_path = saver.save(session, save_file)
                     print("*"*10)

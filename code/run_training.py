@@ -112,176 +112,210 @@ train_set, val_set = data_provider.train_validation_split()
 repeats = args.epochs/9 
 total_train_num = train_set.max_num_ans*train_set.num_batches
 total_valid_num = val_set.max_num_ans*val_set.num_batches
-
+'''
 Model = LstmModel(max_time_steps=train_set.max_num_ans,
                   feature_len=train_set.encoding_dim,
                   n_distinct_questions=train_set.max_prob_set_id,
                   var_dropout=args.var_dropout)
+'''
 
 print('Experiment started at', START_TIME)
 print("Building model...")
+'''
 Model.build_graph(n_hidden_units=args.num_hidden_units,
                   clip_norm=args.clip_norm,
                   # add_gradient_noise=args.add_gradient_noise,
                   optimisation=args.optimisation)
+'''
 print("Model built!")
 
+'''
 train_saver = tf.train.Saver()
 valid_saver = tf.train.Saver()
+'''
 
-with tf.Session() as sess:
-    merged_loss = tf.summary.merge(Model.summary_loss)
-    merged_aucacc = tf.summary.merge(Model.summary_aucacc)
-    blob_size = 50
-    train_writer = tf.summary.FileWriter(SAVE_DIR + '/train', graph=sess.graph)
-    valid_writer = tf.summary.FileWriter(SAVE_DIR + '/valid', graph=sess.graph)
-    sess.run(tf.global_variables_initializer())
+with tf.Graph().as_default():
+    session_conf = tf.ConfigProto(allow_soft_placement=True,
+                                  log_device_placement=False)
+    with tf.Session(config=session_conf) as sess:
 
-    if args.restore:
-        train_saver.restore(sess, tf.train.latest_checkpoint(args.restore))
-        print("Model restored!")
+        initializer = tf.random_uniform_initializer(-0.05, 0.05)
 
-
-
-    print("Starting training...")
-    for epoch in range(args.epochs):
-        # Train one epoch!
-        sess.run(Model.auc_init)
-        sess.run(Model.acc_init)
-        total_sum = 0
-        total_num = 0
-        '''
-        learning_rate = get_learning_rate(epoch,
-                                          args.init_learn_rate,
-                                          args.min_learn_rate,
-                                          args.lr_exp_decay,
-                                          args.lr_decay_step)
-        '''
-
-        learning_rate = GetLearningRate(float(epoch), repeats)
-        print('Learning Rate : ', learning_rate)
-        for i, (inputs, targets, target_ids) in enumerate(train_set):
-            alpha = blob_size / total_train_num
-
-            _, loss, acc_update, auc_update, summary_loss,logit_list = sess.run(
-                [Model.training, Model.loss, Model.accuracy[1], Model.auc[1],
-                 merged_loss,Model.logit_list],
-                feed_dict={Model.inputs: inputs,
-                           Model.targets: targets,
-                           Model.target_ids: target_ids,
-                           Model.learning_rate: learning_rate,
-                           Model.alpha: alpha,
-                           Model.keep_prob: float(args.keep_prob)})
+        with tf.variable_scope("model", reuse=None, initializer=initializer):
+            TrainModel = LstmModel(max_time_steps=train_set.max_num_ans,
+                              feature_len=train_set.encoding_dim,
+                              n_distinct_questions=train_set.max_prob_set_id,
+                              var_dropout=args.var_dropout)
+            TrainModel.build_graph(n_hidden_units=args.num_hidden_units,
+                              clip_norm=args.clip_norm,
+                              # add_gradient_noise=args.add_gradient_noise,
+                              optimisation=args.optimisation,
+                              is_training = True)
+            TrainModel._build_metrics()
 
 
+        with tf.variable_scope("model", reuse=True, initializer=initializer):
+            TestModel = LstmModel(max_time_steps=train_set.max_num_ans,
+                              feature_len=train_set.encoding_dim,
+                              n_distinct_questions=train_set.max_prob_set_id,
+                              var_dropout=args.var_dropout)
+            TestModel.build_graph(n_hidden_units=args.num_hidden_units,
+                              clip_norm=args.clip_norm,
+                              # add_gradient_noise=args.add_gradient_noise,
+                              optimisation=args.optimisation,
+                              is_training = False)
+            TestModel._build_metrics()
 
-            if args.log_stats and i == 0:
-                # optional logging for debugging.
-                print("learning rate is: {}".format(learning_rate))
-                for gv in Model.grads_and_vars:
-                    _ = sess.run([tf.Print(gv, [tf.norm(gv[0]), gv[1].name],
-                                           message="Grad norm is: ")],
-                                 feed_dict={Model.inputs: inputs,
-                                            Model.targets: targets,
-                                            Model.target_ids: target_ids,
-                                            Model.learning_rate: learning_rate,
-                                            Model.keep_prob: float(args.keep_prob)})
+        train_saver = tf.train.Saver()
+        valid_saver = tf.train.Saver()
 
-        accuracy, auc, summary_aucacc = sess.run(
-            [Model.accuracy[0], Model.auc[0], merged_aucacc],
-            feed_dict={Model.inputs: inputs,
-                       Model.targets: targets,
-                       Model.target_ids: target_ids})
+        train_merged_loss = tf.summary.merge(TrainModel.summary_loss)
+        train_merged_aucacc = tf.summary.merge(TrainModel.summary_aucacc)
 
-        predict = logit_list[0]['prediction']
-        logits = logit_list[0]['logits']
-        target = logit_list[0]['target']
-        compare = np.array([target, predict, logits]).T
-        total_sum += np.sum(target - predict != 0)
-        total_num += len(target)
-        print(
-            "Epoch {},  Loss: {:.3f},  Total_sum:{:.3f}, Accuracy: {:.3f},  AUC: {:.3f} (train)"
-                .format(epoch, loss, total_sum / total_num, accuracy, auc))
+        test_merged_loss = tf.summary.merge(TestModel.summary_loss)
+        test_merged_aucacc = tf.summary.merge(TestModel.summary_aucacc)
+
+        train_writer = tf.summary.FileWriter(SAVE_DIR + '/train', graph=sess.graph)
+        valid_writer = tf.summary.FileWriter(SAVE_DIR + '/valid', graph=sess.graph)
+
+        #####sess.run(tf.initialize_all_variables())
+        sess.run(tf.local_variables_initializer())
+        sess.run(tf.global_variables_initializer())
+
+        if args.restore:
+            train_saver.restore(sess, tf.train.latest_checkpoint(args.restore))
+            print("Model restored!")
 
 
-        train_writer.add_summary(summary_loss, epoch)
-        train_writer.add_summary(summary_aucacc, epoch)
 
-        # save model each epoch
-        save_file = "{}/{}_{}.ckpt".format(SAVE_DIR, args.name, epoch)
-        train_saver.save(sess, save_file)
+        print("Starting training...")
+        for epoch in range(args.epochs):
+            # Train one epoch!
+            sess.run(TrainModel.auc_init)
+            sess.run(TrainModel.acc_init)
+            total_sum = 0
+            total_num = 0
 
-        sess.run(Model.auc_init)
-        sess.run(Model.acc_init)
+            learning_rate = get_learning_rate(epoch,
+                                              args.init_learn_rate,
+                                              args.min_learn_rate,
+                                              args.lr_exp_decay,
+                                              args.lr_decay_step)
 
-        # Compute metrics on validation set (no training)
-        loss_total = 0
-        accuracy_total = 0
-        auc_total = 0
+            print('Learning Rate : ', learning_rate)
+            for i, (inputs, targets, target_ids) in enumerate(train_set):
 
-        for i, (inputs, targets, target_ids) in enumerate(val_set):
-            alpha = blob_size / total_valid_num
+                _, loss, acc_update, auc_update, summary_loss,logit_list = sess.run(
+                    [TrainModel.training, TrainModel.loss, TrainModel.accuracy[1], TrainModel.auc[1],
+                     train_merged_loss,TrainModel.logit_list],
+                    feed_dict={TrainModel.inputs: inputs,
+                               TrainModel.targets: targets,
+                               TrainModel.target_ids: target_ids,
+                               TrainModel.learning_rate: learning_rate,
+                               TrainModel.keep_prob: float(args.keep_prob)})
 
-            loss, acc_update, auc_update, summary_loss = sess.run(
-                [Model.loss, Model.accuracy[1], Model.auc[1], merged_loss],
-                feed_dict={
-                    Model.inputs: inputs,
-                    Model.targets: targets,
-                    Model.target_ids: target_ids})
 
-            accuracy, auc, summary_aucacc = sess.run(
-                [Model.accuracy[0], Model.auc[0], merged_aucacc],
-                feed_dict={Model.inputs: inputs,
-                           Model.targets: targets,
-                           Model.target_ids: target_ids,
-                           Model.alpha: alpha,
-                           Model.keep_prob: 1.0})
-        print("Epoch {},  Loss: {:.3f},  Accuracy: {:.3f},  AUC: {:.3f} (valid)"
-                .format(epoch,loss, accuracy, auc))
 
-        valid_writer.add_summary(summary_loss, epoch)
-        valid_writer.add_summary(summary_aucacc, epoch)
+                if args.log_stats and i == 0:
+                    # optional logging for debugging.
+                    print("learning rate is: {}".format(learning_rate))
+                    for gv in TrainModel.grads_and_vars:
+                        _ = sess.run([tf.Print(gv, [tf.norm(gv[0]), gv[1].name],
+                                               message="Grad norm is: ")],
+                                     feed_dict={TrainModel.inputs: inputs,
+                                                TrainModel.targets: targets,
+                                                TrainModel.target_ids: target_ids,
+                                                TrainModel.learning_rate: learning_rate,
+                                                TrainModel.keep_prob: float(args.keep_prob)})
 
-    train_writer.close()
-    valid_writer.close()
+                accuracy, auc, summary_aucacc = sess.run(
+                    [TrainModel.accuracy[0], TrainModel.auc[0], train_merged_aucacc],
+                    feed_dict={TrainModel.inputs: inputs,
+                               TrainModel.targets: targets,
+                               TrainModel.target_ids: target_ids})
 
-    print("Saved model at", save_file)  # training finished
 
-    # Get and save loss, accuracy, and auc metrics
-    events_file_train = get_events_filepath(SAVE_DIR, 'train')
-    metrics_train = events_to_numpy(events_file_train)
-    np.save(os.path.join(SAVE_DIR, 'metrics_train'), metrics_train)
+            print(
+                "Epoch {},  Loss: {:.3f}, Accuracy: {:.3f},  AUC: {:.3f} (train)"
+                    .format(epoch, loss,accuracy, auc))
 
-    events_file_valid = get_events_filepath(SAVE_DIR, 'valid')
-    metrics_valid = events_to_numpy(events_file_valid)
-    np.save(os.path.join(SAVE_DIR, 'metrics_valid'), metrics_valid)
 
-    # plot metrics
-    e = np.arange(args.epochs)
-    plt.figure()
-    train_plt, = plt.plot(e, metrics_train[:, 0])
-    valid_plt, = plt.plot(e, metrics_valid[:, 0])
-    plt.legend([train_plt, valid_plt], ['train', 'valid'])
-    plt.xlabel('Epoch')
-    plt.ylabel('loss')
-    plt.title('Loss per epoch')
-    plt.savefig(SAVE_DIR + '/loss.png')
+            train_writer.add_summary(summary_loss, epoch)
+            train_writer.add_summary(summary_aucacc, epoch)
 
-    plt.figure()
-    train_plt, = plt.plot(e, metrics_train[:, 1])
-    valid_plt, = plt.plot(e, metrics_valid[:, 1])
-    plt.legend([train_plt, valid_plt], ['train', 'valid'])
-    plt.xlabel('Epoch')
-    plt.ylabel('AUC')
-    plt.title('AUC per epoch')
-    plt.savefig(SAVE_DIR + '/auc.png')
+            # save model each epoch
+            save_file = "{}/{}_{}.ckpt".format(SAVE_DIR, args.name, epoch)
+            train_saver.save(sess, save_file)
 
-    plt.figure()
-    train_plt, = plt.plot(e, metrics_train[:, 2])
-    valid_plt, = plt.plot(e, metrics_valid[:, 2])
-    plt.legend([train_plt, valid_plt], ['train', 'valid'])
-    plt.xlabel('Epoch')
-    plt.ylabel('Accuracy')
-    plt.title('Accuracy per epoch')
-    plt.savefig(SAVE_DIR + '/accuracy.png')
+            sess.run(TestModel.auc_init)
+            sess.run(TestModel.acc_init)
+
+            # Compute metrics on validation set (no training)
+            loss_total = 0
+            accuracy_total = 0
+            auc_total = 0
+
+            for i, (inputs, targets, target_ids) in enumerate(val_set):
+
+                loss, acc_update, auc_update, summary_loss = sess.run(
+                    [TestModel.loss, TestModel.accuracy[1], TestModel.auc[1], test_merged_loss],
+                    feed_dict={
+                        TestModel.inputs: inputs,
+                        TestModel.targets: targets,
+                        TestModel.target_ids: target_ids})
+
+                accuracy, auc, summary_aucacc = sess.run(
+                    [TestModel.accuracy[0], TestModel.auc[0], test_merged_aucacc],
+                    feed_dict={TestModel.inputs: inputs,
+                               TestModel.targets: targets,
+                               TestModel.target_ids: target_ids,
+                               TestModel.keep_prob: 1.0})
+            print("Epoch {},  Loss: {:.3f},  Accuracy: {:.3f},  AUC: {:.3f} (valid)"
+                    .format(epoch,loss, accuracy, auc))
+
+            valid_writer.add_summary(summary_loss, epoch)
+            valid_writer.add_summary(summary_aucacc, epoch)
+
+        train_writer.close()
+        valid_writer.close()
+
+        print("Saved model at", save_file)  # training finished
+
+        # Get and save loss, accuracy, and auc metrics
+        events_file_train = get_events_filepath(SAVE_DIR, 'train')
+        metrics_train = events_to_numpy(events_file_train)
+        np.save(os.path.join(SAVE_DIR, 'metrics_train'), metrics_train)
+
+        events_file_valid = get_events_filepath(SAVE_DIR, 'valid')
+        metrics_valid = events_to_numpy(events_file_valid)
+        np.save(os.path.join(SAVE_DIR, 'metrics_valid'), metrics_valid)
+
+        # plot metrics
+        e = np.arange(args.epochs)
+        plt.figure()
+        train_plt, = plt.plot(e, metrics_train[:, 0])
+        valid_plt, = plt.plot(e, metrics_valid[:, 0])
+        plt.legend([train_plt, valid_plt], ['train', 'valid'])
+        plt.xlabel('Epoch')
+        plt.ylabel('loss')
+        plt.title('Loss per epoch')
+        plt.savefig(SAVE_DIR + '/loss.png')
+
+        plt.figure()
+        train_plt, = plt.plot(e, metrics_train[:, 1])
+        valid_plt, = plt.plot(e, metrics_valid[:, 1])
+        plt.legend([train_plt, valid_plt], ['train', 'valid'])
+        plt.xlabel('Epoch')
+        plt.ylabel('AUC')
+        plt.title('AUC per epoch')
+        plt.savefig(SAVE_DIR + '/auc.png')
+
+        plt.figure()
+        train_plt, = plt.plot(e, metrics_train[:, 2])
+        valid_plt, = plt.plot(e, metrics_valid[:, 2])
+        plt.legend([train_plt, valid_plt], ['train', 'valid'])
+        plt.xlabel('Epoch')
+        plt.ylabel('Accuracy')
+        plt.title('Accuracy per epoch')
+        plt.savefig(SAVE_DIR + '/accuracy.png')
 

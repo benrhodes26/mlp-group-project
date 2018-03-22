@@ -27,16 +27,18 @@ class LstmModel:
             n_hidden_units=200,
             clip_norm=5*1e-5,
             add_gradient_noise=1e-3,
-            optimisation='adam'):
+            optimisation='adam',
+            is_training = True):
 
         self._build_model(n_hidden_layers=n_hidden_layers,
-                          n_hidden_units=n_hidden_units)
+                          n_hidden_units=n_hidden_units, is_training=is_training)
         self._build_training(clip_norm=clip_norm,
-                             add_gradient_noise=add_gradient_noise,
-                             optimisation=optimisation)
-        self._build_metrics()
+                                 add_gradient_noise=add_gradient_noise,
+                                 optimisation=optimisation,
+                                 is_training = is_training)
+        #self._build_metrics()
 
-    def _build_model(self, n_hidden_layers=1, n_hidden_units=200):
+    def _build_model(self, n_hidden_layers=1, n_hidden_units=200, is_training = True):
         """Build a TensorFlow computational graph for an LSTM network.
 
         Model based on "DKT paper" (see section 3):
@@ -55,7 +57,7 @@ class LstmModel:
         n_hidden_units : int (default=200)
             200 hidden units were used in DKT paper
         """
-        tf.reset_default_graph()
+        #tf.reset_default_graph()
 
         # data. 'None' means any length batch size accepted
         self.inputs = tf.placeholder(
@@ -75,25 +77,25 @@ class LstmModel:
 
         self.keep_prob = tf.placeholder_with_default(1.0, shape=(),
                                                      name='keep_prob')
-        self.alpha = tf.placeholder_with_default(1.0, shape=(),
-                                                     name='alpha')
+
         # with tf.variable_scope('RNN', initializer=tf.contrib.layers.xavier_initializer()):
         # todo worry about initialisation?
         # with tf.variable_scope('RNN', initializer=tf.random_uniform_initializer(-0.5, 0.5)):
             # model. LSTM layer(s) then linear layer (softmax applied in loss)
         cell = tf.nn.rnn_cell.BasicLSTMCell(n_hidden_units)
 
-        if self.var_dropout:
-            cell = tf.nn.rnn_cell.DropoutWrapper(cell,
-                                                 output_keep_prob=self.keep_prob,
-                                                 state_keep_prob=self.keep_prob,
-                                                 variational_recurrent=self.var_dropout,
-                                                 dtype=tf.float32)
-        else:
-            # Only apply non-variational dropout to output connections
-            cell = tf.nn.rnn_cell.DropoutWrapper(cell,
-                                                 output_keep_prob=self.keep_prob,
-                                                 dtype=tf.float32)
+        if is_training:
+            if self.var_dropout:
+                cell = tf.nn.rnn_cell.DropoutWrapper(cell,
+                                                     output_keep_prob=self.keep_prob,
+                                                     state_keep_prob=self.keep_prob,
+                                                     variational_recurrent=self.var_dropout,
+                                                     dtype=tf.float32)
+            else:
+                # Only apply non-variational dropout to output connections
+                cell = tf.nn.rnn_cell.DropoutWrapper(cell,
+                                                     output_keep_prob=self.keep_prob,
+                                                     dtype=tf.float32)
 
         if n_hidden_layers > 1:
             cells = [cell for layer in n_hidden_layers]
@@ -129,7 +131,7 @@ class LstmModel:
         self.logit_list.append(logit_dic)
 
     def _build_training(self, clip_norm=5*1e-5, add_gradient_noise=1e-3,
-                        optimisation='adam'):
+                        optimisation='adam', is_training = True):
         """Define parameters updates.
 
         Applies exponential learning rate decay (optional). See:
@@ -151,32 +153,33 @@ class LstmModel:
         self.learning_rate = tf.placeholder_with_default(1.0, shape=(),
                                                          name='learning_rate')
 
-        update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
-        with tf.control_dependencies(update_ops):
-            # Ensures that we execute the update_ops before performing the
-            # train_step
+        if is_training:
+            update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+            with tf.control_dependencies(update_ops):
+                # Ensures that we execute the update_ops before performing the
+                # train_step
 
-            if optimisation == 'adam':
-                optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate)
-            elif optimisation == 'rmsprop':
-                optimizer = tf.train.RMSPropOptimizer(learning_rate=self.learning_rate)
-            elif optimisation == 'momentum':
-                optimizer = tf.train.MomentumOptimizer(learning_rate=self.learning_rate)
-            elif optimisation == 'sgd':
-                optimizer = tf.train.GradientDescentOptimizer(learning_rate=self.learning_rate)
+                if optimisation == 'adam':
+                    optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate)
+                elif optimisation == 'rmsprop':
+                    optimizer = tf.train.RMSPropOptimizer(learning_rate=self.learning_rate)
+                elif optimisation == 'momentum':
+                    optimizer = tf.train.MomentumOptimizer(learning_rate=self.learning_rate)
+                elif optimisation == 'sgd':
+                    optimizer = tf.train.GradientDescentOptimizer(learning_rate=self.learning_rate)
 
-            grads, trainable_vars = list(zip(*optimizer.compute_gradients(self.loss)))
+                grads, trainable_vars = list(zip(*optimizer.compute_gradients(self.loss)))
 
-            if clip_norm:
-                # grads, _ = tf.clip_by_global_norm(grads, clip_norm)
-                grads = [tf.clip_by_norm(grad, clip_norm) for grad in grads]
-            #if add_gradient_noise:
-            #    grads = [self.add_noise(g) for g in grads]
+                if clip_norm:
+                    # grads, _ = tf.clip_by_global_norm(grads, clip_norm)
+                    grads = [tf.clip_by_norm(grad, clip_norm) for grad in grads]
+                #if add_gradient_noise:
+                #    grads = [self.add_noise(g) for g in grads]
 
-            self.grads_and_vars = list(zip(grads, trainable_vars))
-            self.training = optimizer.apply_gradients(
-                self.grads_and_vars,
-                global_step=self.global_step)
+                self.grads_and_vars = list(zip(grads, trainable_vars))
+                self.training = optimizer.apply_gradients(
+                    self.grads_and_vars,
+                    global_step=self.global_step)
 
     def _build_metrics(self):
         """Add ability to compute accuracy and AUC."""
