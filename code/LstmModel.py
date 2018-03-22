@@ -164,7 +164,7 @@ class LstmModel:
                 elif optimisation == 'rmsprop':
                     optimizer = tf.train.RMSPropOptimizer(learning_rate=self.learning_rate)
                 elif optimisation == 'momentum':
-                    optimizer = tf.train.MomentumOptimizer(learning_rate=self.learning_rate)
+                    optimizer = tf.train.MomentumOptimizer(learning_rate=self.learning_rate, momentum=0.98)
                 elif optimisation == 'sgd':
                     optimizer = tf.train.GradientDescentOptimizer(learning_rate=self.learning_rate)
 
