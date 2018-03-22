@@ -30,14 +30,13 @@ tf.flags.DEFINE_integer("hidden_layer_num", 1, "The number of hidden layers (Int
 tf.flags.DEFINE_integer("hidden_size", 200, "The number of hidden nodes (Integer)")
 tf.flags.DEFINE_integer("evaluation_interval", 5, "Evaluate and print results every x epochs")
 tf.flags.DEFINE_integer("batch_size", 32, "Batch size for training.")
-tf.flags.DEFINE_integer("epochs", 150, "Number of epochs to train for.")
+tf.flags.DEFINE_integer("epochs", 50, "Number of epochs to train for.")
 tf.flags.DEFINE_boolean("allow_soft_placement", True, "Allow device soft device placement")
 tf.flags.DEFINE_boolean("log_device_placement", False, "Log placement of ops on devices")
 tf.flags.DEFINE_string("train_data_path", 'data/0910_b_train.csv', "Path to the training dataset")
 tf.flags.DEFINE_string("test_data_path", 'data/0910_b_test.csv', "Path to the testing dataset")
 
 FLAGS = tf.flags.FLAGS
-FLAGS(sys.argv)
 print("\nParameters:")
 for attr, value in sorted(FLAGS.__flags.items()):
     print("{}={}".format(attr.upper(), value))
@@ -94,7 +93,7 @@ class StudentModel(object):
 
         # [batch_size, num_steps, input_size]
         inputs = tf.reshape(inputs, [-1, num_steps, input_size])
-        x = tf.transpose(inputs, [1, 0, 2])
+        x = tf.transpose(inputs, [0, 1,2])
 
         # Reshape to (n_steps*batch_size, n_input)
         #x = tf.reshape(x, [-1, input_size])
@@ -106,7 +105,7 @@ class StudentModel(object):
         #inputs = [tf.squeeze(input_, [1]) for input_ in tf.split(1, num_steps, inputs)]
         #outputs, state = tf.nn.rnn(hidden1, x, dtype=tf.float32)
         outputs, state = tf.nn.dynamic_rnn(cell, x, dtype=tf.float32)
-        output = tf.reshape(tf.concat(outputs,1), [-1, final_hidden_size])
+        output = tf.reshape(tf.concat(outputs,1), [-1, int(final_hidden_size)])
         # calculate the logits from last hidden layer to output layer
         sigmoid_w = tf.get_variable("sigmoid_w", [final_hidden_size, num_skills])
         sigmoid_b = tf.get_variable("sigmoid_b", [num_skills])
@@ -233,7 +232,7 @@ def read_data_from_csv_file(fileName):
             rows.append(row)
     index = 0
     i = 0
-    print "the number of rows is " + str(len(rows))
+    print("the number of rows is " + str(len(rows)))
     tuple_rows = []
     #turn list to tuple
     while(index < len(rows)-1):
@@ -252,8 +251,8 @@ def read_data_from_csv_file(fileName):
     #shuffle the tuple
 
     random.shuffle(tuple_rows)
-    print "The number of students is ", len(tuple_rows)
-    print "Finish reading data"
+    print("The number of students is ", len(tuple_rows))
+    print("Finish reading data")
     return tuple_rows, max_num_problems, max_skill_num+1
 
 def main(unused_args):
@@ -318,12 +317,12 @@ def main(unused_args):
                 print("Epoch: %d Train Metrics:\n rmse: %.3f \t auc: %.3f \t r2: %.3f \n" % (i + 1, rmse, auc, r2))
 
                 if i==0:
-                    print "Test saving"
+                    print("Test saving")
                     save_file = "{}/{}.ckpt".format(model_name, global_step)
                     save_path = saver.save(session, save_file)
 
                 if((i+1) % FLAGS.evaluation_interval == 0):
-                    print "Save variables to disk"
+                    print("Save variables to disk")
                     save_file = "{}/{}.ckpt".format(model_name, global_step)
                     save_path = saver.save(session, save_file)
                     print("*"*10)

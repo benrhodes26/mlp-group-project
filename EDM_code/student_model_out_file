@@ -1,0 +1,221 @@
+
+Parameters:
+
+the number of rows is 10116
+The number of students is  3134
+Finish reading data
+the number of rows is 2532
+The number of students is  786
+Finish reading data
+Writing hyperparameters into file
+Epoch: 1 Train Metrics:
+ rmse: 0.452 	 auc: 0.675 	 r2: 0.096 
+
+Test saving
+Epoch: 2 Train Metrics:
+ rmse: 0.414 	 auc: 0.780 	 r2: 0.240 
+
+Epoch: 3 Train Metrics:
+ rmse: 0.406 	 auc: 0.796 	 r2: 0.269 
+
+Epoch: 4 Train Metrics:
+ rmse: 0.401 	 auc: 0.808 	 r2: 0.290 
+
+Epoch: 5 Train Metrics:
+ rmse: 0.397 	 auc: 0.815 	 r2: 0.303 
+
+Save variables to disk
+**********
+Start to test model....
+Epoch: 5 Test Metrics:
+ rmse: 0.395 	 auc: 0.817 	 r2: 0.309
+**********
+Epoch: 6 Train Metrics:
+ rmse: 0.395 	 auc: 0.820 	 r2: 0.311 
+
+Epoch: 7 Train Metrics:
+ rmse: 0.393 	 auc: 0.824 	 r2: 0.318 
+
+Epoch: 8 Train Metrics:
+ rmse: 0.390 	 auc: 0.828 	 r2: 0.326 
+
+Epoch: 9 Train Metrics:
+ rmse: 0.389 	 auc: 0.831 	 r2: 0.331 
+
+Epoch: 10 Train Metrics:
+ rmse: 0.387 	 auc: 0.834 	 r2: 0.335 
+
+Save variables to disk
+**********
+Start to test model....
+Epoch: 10 Test Metrics:
+ rmse: 0.396 	 auc: 0.816 	 r2: 0.303
+**********
+Epoch: 11 Train Metrics:
+ rmse: 0.386 	 auc: 0.836 	 r2: 0.339 
+
+Epoch: 12 Train Metrics:
+ rmse: 0.385 	 auc: 0.839 	 r2: 0.343 
+
+Epoch: 13 Train Metrics:
+ rmse: 0.385 	 auc: 0.839 	 r2: 0.344 
+
+Epoch: 14 Train Metrics:
+ rmse: 0.384 	 auc: 0.840 	 r2: 0.346 
+
+Epoch: 15 Train Metrics:
+ rmse: 0.384 	 auc: 0.840 	 r2: 0.346 
+
+Save variables to disk
+**********
+Start to test model....
+Epoch: 15 Test Metrics:
+ rmse: 0.397 	 auc: 0.814 	 r2: 0.301
+**********
+Epoch: 16 Train Metrics:
+ rmse: 0.382 	 auc: 0.844 	 r2: 0.352 
+
+Epoch: 17 Train Metrics:
+ rmse: 0.382 	 auc: 0.845 	 r2: 0.355 
+
+Epoch: 18 Train Metrics:
+ rmse: 0.382 	 auc: 0.845 	 r2: 0.355 
+
+Epoch: 19 Train Metrics:
+ rmse: 0.381 	 auc: 0.845 	 r2: 0.356 
+
+Epoch: 20 Train Metrics:
+ rmse: 0.380 	 auc: 0.848 	 r2: 0.361 
+
+Save variables to disk
+**********
+Start to test model....
+Epoch: 20 Test Metrics:
+ rmse: 0.401 	 auc: 0.807 	 r2: 0.285
+**********
+Epoch: 21 Train Metrics:
+ rmse: 0.381 	 auc: 0.846 	 r2: 0.356 
+
+Epoch: 22 Train Metrics:
+ rmse: 0.381 	 auc: 0.846 	 r2: 0.358 
+
+Epoch: 23 Train Metrics:
+ rmse: 0.379 	 auc: 0.850 	 r2: 0.365 
+
+Epoch: 24 Train Metrics:
+ rmse: 0.378 	 auc: 0.851 	 r2: 0.367 
+
+Epoch: 25 Train Metrics:
+ rmse: 0.379 	 auc: 0.850 	 r2: 0.365 
+
+Save variables to disk
+**********
+Start to test model....
+Epoch: 25 Test Metrics:
+ rmse: 0.401 	 auc: 0.808 	 r2: 0.285
+**********
+Epoch: 26 Train Metrics:
+ rmse: 0.379 	 auc: 0.850 	 r2: 0.365 
+
+Epoch: 27 Train Metrics:
+ rmse: 0.378 	 auc: 0.851 	 r2: 0.366 
+
+Epoch: 28 Train Metrics:
+ rmse: 0.377 	 auc: 0.853 	 r2: 0.369 
+
+Epoch: 29 Train Metrics:
+ rmse: 0.378 	 auc: 0.851 	 r2: 0.367 
+
+Epoch: 30 Train Metrics:
+ rmse: 0.379 	 auc: 0.850 	 r2: 0.363 
+
+Save variables to disk
+**********
+Start to test model....
+Epoch: 30 Test Metrics:
+ rmse: 0.403 	 auc: 0.804 	 r2: 0.279
+**********
+Epoch: 31 Train Metrics:
+ rmse: 0.380 	 auc: 0.849 	 r2: 0.360 
+
+Epoch: 32 Train Metrics:
+ rmse: 0.378 	 auc: 0.852 	 r2: 0.367 
+
+Epoch: 33 Train Metrics:
+ rmse: 0.377 	 auc: 0.853 	 r2: 0.371 
+
+Epoch: 34 Train Metrics:
+ rmse: 0.376 	 auc: 0.855 	 r2: 0.373 
+
+Epoch: 35 Train Metrics:
+ rmse: 0.377 	 auc: 0.854 	 r2: 0.371 
+
+Save variables to disk
+**********
+Start to test model....
+Epoch: 35 Test Metrics:
+ rmse: 0.404 	 auc: 0.802 	 r2: 0.277
+**********
+Epoch: 36 Train Metrics:
+ rmse: 0.376 	 auc: 0.856 	 r2: 0.375 
+
+Epoch: 37 Train Metrics:
+ rmse: 0.374 	 auc: 0.858 	 r2: 0.380 
+
+Epoch: 38 Train Metrics:
+ rmse: 0.374 	 auc: 0.858 	 r2: 0.380 
+
+Epoch: 39 Train Metrics:
+ rmse: 0.374 	 auc: 0.859 	 r2: 0.382 
+
+Epoch: 40 Train Metrics:
+ rmse: 0.373 	 auc: 0.860 	 r2: 0.384 
+
+Save variables to disk
+**********
+Start to test model....
+Epoch: 40 Test Metrics:
+ rmse: 0.403 	 auc: 0.806 	 r2: 0.279
+**********
+Epoch: 41 Train Metrics:
+ rmse: 0.373 	 auc: 0.860 	 r2: 0.383 
+
+Epoch: 42 Train Metrics:
+ rmse: 0.372 	 auc: 0.861 	 r2: 0.386 
+
+Epoch: 43 Train Metrics:
+ rmse: 0.371 	 auc: 0.863 	 r2: 0.390 
+
+Epoch: 44 Train Metrics:
+ rmse: 0.371 	 auc: 0.862 	 r2: 0.389 
+
+Epoch: 45 Train Metrics:
+ rmse: 0.371 	 auc: 0.863 	 r2: 0.391 
+
+Save variables to disk
+**********
+Start to test model....
+Epoch: 45 Test Metrics:
+ rmse: 0.406 	 auc: 0.801 	 r2: 0.269
+**********
+Epoch: 46 Train Metrics:
+ rmse: 0.371 	 auc: 0.863 	 r2: 0.390 
+
+Epoch: 47 Train Metrics:
+ rmse: 0.371 	 auc: 0.864 	 r2: 0.391 
+
+Epoch: 48 Train Metrics:
+ rmse: 0.370 	 auc: 0.864 	 r2: 0.393 
+
+Epoch: 49 Train Metrics:
+ rmse: 0.369 	 auc: 0.866 	 r2: 0.396 
+
+Epoch: 50 Train Metrics:
+ rmse: 0.370 	 auc: 0.865 	 r2: 0.395 
+
+Save variables to disk
+**********
+Start to test model....
+Epoch: 50 Test Metrics:
+ rmse: 0.408 	 auc: 0.800 	 r2: 0.261
+**********
