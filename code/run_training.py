@@ -43,24 +43,26 @@ parser.add_argument('--restore', default=None,
 parser.add_argument('--optimisation', type=str, default='sgd',
                     help='optimisation method. Choices are: adam, rmsprop, '
                          'momentum and sgd.')
-parser.add_argument('--init_learn_rate', type=float, default=30,
+parser.add_argument('--init_learn_rate', type=float, default=10,
                     help='Initial learning rate.')
 parser.add_argument('--min_learn_rate', type=float, default=1,
                     help='minimum possible learning rate.')
 parser.add_argument('--lr_decay_step', type=float, default=12,
                     help='Decrease learning rate every x epochs')
-parser.add_argument('--lr_exp_decay', type=float, default=(1 / 3),
+parser.add_argument('--lr_exp_decay', type=float, default=0.5,
                     help='fraction to multiply learning rate by each step')
 parser.add_argument('--num_hidden_units', type=int, default=200,
                     help='Number of hidden units in the LSTM cell')
-parser.add_argument('--batch', type=int, default=32,
+parser.add_argument('--batch', type=int, default=96,
                     help='Batch size')
 parser.add_argument('--epochs', type=int, default=100,
                     help='Number of training epochs')
-parser.add_argument('--decay', type=float, default=0.96,
-                    help='Fraction to decay learning rate every 100 batches')
-parser.add_argument('--decay_step', type=int, default=3000,
-                    help='Apply learning rate decay every x batches')
+parser.add_argument('--threshold', type=int, default=100,
+                    help='threshold sequence lengths')
+# parser.add_argument('--decay', type=float, default=0.96,
+#                   help='Fraction to decay learning rate every 100 batches')
+# parser.add_argument('--decay_step', type=int, default=3000,
+#                   help='Apply learning rate decay every x batches')
 # parser.add_argument('--add_gradient_noise', type=float, default=1e-3,
 #                    help='add gaussian noise with stdev=1e-3 to gradients')
 parser.add_argument('--clip_norm', type=float, default=1,
@@ -106,7 +108,7 @@ data_provider = ASSISTDataProvider(
     use_plus_minus_feats=args.plus_minus_feats,
     use_compressed_sensing=args.compressed_sensing,
     fraction=args.fraction)
-train_set, val_set = data_provider.train_validation_split()
+train_set, val_set = data_provider.train_validation_split(threshold=args.threshold)
 
 
 repeats = args.epochs/9 
