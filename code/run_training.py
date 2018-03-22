@@ -75,8 +75,8 @@ parser.add_argument('--plus_minus_feats', dest='plus_minus_feats', action='store
                     help='use +/- for feature encoding')
 parser.add_argument('--compressed_sensing', dest='compressed_sensing', action='store_true',
                     help='use compressed sensing')
-parser.add_argument('--no-log_stats', dest='log_stats', action='store_false',
-                    help='do not print learning rate and gradient norms once an epoch')
+parser.add_argument('--log_stats', dest='log_stats', action='store_true',
+                    help='print learning rate and gradient norms once an epoch')
 parser.add_argument('--fraction', type=float, default=1.0,
                     help='Fraction of data to use. Useful for hyperparameter tuning')
 parser.add_argument('--name', type=str, default=START_TIME,
