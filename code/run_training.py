@@ -169,7 +169,7 @@ with tf.Graph().as_default():
                                               args.lr_decay_step)
 
             print('Learning Rate : ', learning_rate)
-            for i, (inputs, targets, target_ids) in enumerate(train_set):
+            for i, (inputs, targets, target_ids, seq_len) in enumerate(train_set):
                 
                 _, loss, acc_update, auc_update, summary_loss,logit_list = sess.run(
                     [TrainModel.training, TrainModel.loss, TrainModel.accuracy[1], TrainModel.auc[1],
@@ -178,7 +178,8 @@ with tf.Graph().as_default():
                                TrainModel.targets: targets,
                                TrainModel.target_ids: target_ids,
                                TrainModel.learning_rate: learning_rate,
-                               TrainModel.keep_prob: float(args.keep_prob)})
+                               TrainModel.keep_prob: float(args.keep_prob),
+                               TrainModel.seq_len: seq_len})
 
 
                 if args.log_stats and i == 0:
@@ -220,14 +221,15 @@ with tf.Graph().as_default():
             accuracy_total = 0
             auc_total = 0
 
-            for i, (inputs, targets, target_ids) in enumerate(val_set):
+            for i, (inputs, targets, target_ids, seq_len) in enumerate(val_set):
 
                 loss, acc_update, auc_update, summary_loss = sess.run(
                     [TestModel.loss, TestModel.accuracy[1], TestModel.auc[1], test_merged_loss],
                     feed_dict={
                         TestModel.inputs: inputs,
                         TestModel.targets: targets,
-                        TestModel.target_ids: target_ids})
+                        TestModel.target_ids: target_ids,
+                        TestModel.seq_len: seq_len})
 
                 accuracy, auc, summary_aucacc = sess.run(
                     [TestModel.accuracy[0], TestModel.auc[0], test_merged_aucacc],

@@ -79,6 +79,7 @@ class LstmModel:
 
         self.keep_prob = tf.placeholder_with_default(1.0, shape=(),
                                                      name='keep_prob')
+        self.seq_len = tf.placeholder(tf.int32, shape=[None], name='seq_len')
 
         # with tf.variable_scope('RNN', initializer=tf.contrib.layers.xavier_initializer()):
         # todo worry about initialisation?
@@ -105,7 +106,8 @@ class LstmModel:
 
         self.outputs, self.state = tf.nn.dynamic_rnn(cell=cell,
                                                      inputs=self.inputs,
-                                                     dtype=tf.float32)
+                                                     dtype=tf.float32,
+                                                     sequence_length=self.seq_len)
 
         sigmoid_w = tf.get_variable(dtype=tf.float32,
                                     name="sigmoid_w",
