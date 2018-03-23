@@ -92,6 +92,7 @@ class StudentModel(object):
 
         # [batch_size, num_steps, input_size]
         inputs = tf.reshape(inputs, [-1, num_steps, input_size])
+        print(inputs.shape)
         x = inputs#tf.transpose(inputs, [0, 2])
 
 
