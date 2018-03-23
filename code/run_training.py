@@ -17,18 +17,6 @@ import matplotlib.pyplot as plt
 START_TIME = strftime('%Y%m%d-%H%M', gmtime())
 
 
-LEARNING_RATES = [30.0, 30.0, 30.0, 10.0, 10.0, 10.0, 5.0, 5.0, 5.0]
-MIN_LEARNING_RATE = 1
-
-def GetLearningRate(epochIndex, LEARNING_RATE_REPEATS):
-    rate = MIN_LEARNING_RATE
-    rateIndex = math.floor((epochIndex - 1) / LEARNING_RATE_REPEATS) + 1
-    if rateIndex <=  len(LEARNING_RATES):
-            rate = LEARNING_RATES[int(rateIndex)]
-
-    return rate
-
-
 parser = ArgumentParser(description='Train LstmModel.',
                         formatter_class=ArgumentDefaultsHelpFormatter)
 parser.add_argument('--data_dir', type=str,
@@ -51,6 +39,8 @@ parser.add_argument('--lr_decay_step', type=float, default=12,
                     help='Decrease learning rate every x epochs')
 parser.add_argument('--lr_exp_decay', type=float, default=0.5,
                     help='fraction to multiply learning rate by each step')
+parser.add_argument('--epsilon', type=float, default=0.1,
+                    help='epsilon value for adam optimisers')
 parser.add_argument('--num_hidden_units', type=int, default=200,
                     help='Number of hidden units in the LSTM cell')
 parser.add_argument('--batch', type=int, default=96,
@@ -110,19 +100,6 @@ Model = LstmModel(max_time_steps=train_set.max_num_ans,
 '''
 
 print('Experiment started at', START_TIME)
-print("Building model...")
-'''
-Model.build_graph(n_hidden_units=args.num_hidden_units,
-                  clip_norm=args.clip_norm,
-                  # add_gradient_noise=args.add_gradient_noise,
-                  optimisation=args.optimisation)
-'''
-print("Model built!")
-
-'''
-train_saver = tf.train.Saver()
-valid_saver = tf.train.Saver()
-'''
 
 with tf.Graph().as_default():
     session_conf = tf.ConfigProto(allow_soft_placement=True,

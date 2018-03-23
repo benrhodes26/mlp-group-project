@@ -28,6 +28,7 @@ class LstmModel:
             clip_norm=5*1e-5,
             add_gradient_noise=1e-3,
             optimisation='adam',
+            epsilon=0.1,
             is_training = True):
 
         self._build_model(n_hidden_layers=n_hidden_layers,
@@ -35,6 +36,7 @@ class LstmModel:
         self._build_training(clip_norm=clip_norm,
                                  add_gradient_noise=add_gradient_noise,
                                  optimisation=optimisation,
+                                 epsilon = epsilon,
                                  is_training = is_training)
         #self._build_metrics()
 
@@ -131,7 +133,7 @@ class LstmModel:
         self.logit_list.append(logit_dic)
 
     def _build_training(self, clip_norm=5*1e-5, add_gradient_noise=1e-3,
-                        optimisation='adam', is_training = True):
+                        optimisation='adam', epsilon=0.1, is_training = True):
         """Define parameters updates.
 
         Applies exponential learning rate decay (optional). See:
@@ -160,7 +162,7 @@ class LstmModel:
                 # train_step
 
                 if optimisation == 'adam':
-                    optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate, epsilon=0.1)
+                    optimizer = tf.train.AdamOptimizer(learning_rate=self.learning_rate, epsilon=epsilon)
                 elif optimisation == 'rmsprop':
                     optimizer = tf.train.RMSPropOptimizer(learning_rate=self.learning_rate)
                 elif optimisation == 'momentum':
