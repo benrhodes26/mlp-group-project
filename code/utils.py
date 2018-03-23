@@ -27,7 +27,7 @@ def events_to_numpy(event_file):
         for v in event.summary.value:
 
             print(v.tag)
-            if v.tag == 'loss' or v.tag == 'accuracy' or v.tag == 'auc_1':
+            if v.tag.find('loss')>-1 or v.tag.find('accuracy')>-1 or v.tag.find('auc_1')>-1:
                 event_triple.append(v.simple_value)
 
         if len(event_triple) == 3:

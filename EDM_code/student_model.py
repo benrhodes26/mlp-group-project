@@ -69,7 +69,7 @@ class StudentModel(object):
         inputs = self._input_data = tf.placeholder(tf.int32, [batch_size, num_steps])
         self._target_id = target_id = tf.placeholder(tf.int32, [None])
         self._target_correctness = target_correctness = tf.placeholder(tf.float32, [None])
-        final_hidden_size = size
+        final_hidden_size = int(size)
 
         hidden_layers = []
         for i in range(FLAGS.hidden_layer_num):
