@@ -314,11 +314,11 @@ class ASSISTDataProvider(DataProvider):
         targets_batch = self.batched_targets[batch_id]
         self._curr_batch += 1
 
-        # batch_lengths = np.array([len(i) for i in targets_batch], dtype=np.int32)
+        batch_lengths = np.array([len(i) for i in targets_batch], dtype=np.int32)
         batch_inputs, batch_target_ids, batch_targets,  = \
             self.transform_batch(inputs_batch, target_ids_batch, targets_batch)
 
-        return batch_inputs, batch_targets, batch_target_ids
+        return batch_inputs, batch_targets, batch_target_ids, batch_lengths
 
     def transform_batch(self, inputs_batch, target_ids_batch, targets_batch):
         """reshape batch of data ready to be processed by an RNN"""
