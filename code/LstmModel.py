@@ -175,8 +175,8 @@ class LstmModel:
                 if clip_norm:
                     # grads, _ = tf.clip_by_global_norm(grads, clip_norm)
                     grads = [tf.clip_by_norm(grad, clip_norm) for grad in grads]
-                #if add_gradient_noise:
-                grads = [self.add_noise(g) for g in grads]
+                if optimisation=='adam':
+                    grads = [self.add_noise(g) for g in grads]
 
                 self.grads_and_vars = list(zip(grads, trainable_vars))
                 self.training = optimizer.apply_gradients(
