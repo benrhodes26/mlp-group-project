@@ -43,26 +43,24 @@ parser.add_argument('--restore', default=None,
 parser.add_argument('--optimisation', type=str, default='sgd',
                     help='optimisation method. Choices are: adam, rmsprop, '
                          'momentum and sgd.')
-parser.add_argument('--init_learn_rate', type=float, default=10,
+parser.add_argument('--init_learn_rate', type=float, default=30,
                     help='Initial learning rate.')
 parser.add_argument('--min_learn_rate', type=float, default=1,
                     help='minimum possible learning rate.')
 parser.add_argument('--lr_decay_step', type=float, default=12,
                     help='Decrease learning rate every x epochs')
-parser.add_argument('--lr_exp_decay', type=float, default=0.5,
+parser.add_argument('--lr_exp_decay', type=float, default=(1 / 3),
                     help='fraction to multiply learning rate by each step')
 parser.add_argument('--num_hidden_units', type=int, default=200,
                     help='Number of hidden units in the LSTM cell')
-parser.add_argument('--batch', type=int, default=96,
+parser.add_argument('--batch', type=int, default=32,
                     help='Batch size')
 parser.add_argument('--epochs', type=int, default=100,
                     help='Number of training epochs')
-parser.add_argument('--threshold', type=int, default=100,
-                    help='threshold sequence lengths')
-# parser.add_argument('--decay', type=float, default=0.96,
-#                   help='Fraction to decay learning rate every 100 batches')
-# parser.add_argument('--decay_step', type=int, default=3000,
-#                   help='Apply learning rate decay every x batches')
+parser.add_argument('--decay', type=float, default=0.96,
+                    help='Fraction to decay learning rate every 100 batches')
+parser.add_argument('--decay_step', type=int, default=3000,
+                    help='Apply learning rate decay every x batches')
 # parser.add_argument('--add_gradient_noise', type=float, default=1e-3,
 #                    help='add gaussian noise with stdev=1e-3 to gradients')
 parser.add_argument('--clip_norm', type=float, default=1,
@@ -71,12 +69,24 @@ parser.add_argument('--keep_prob', type=float, default=0.6,
                     help='Fraction to keep in dropout applied to LSTM cell')
 parser.add_argument('--var_dropout', dest='var_dropout', action='store_true',
                     help='use variational dropout')
+parser.add_argument('--no-var_dropout', dest='var_dropout', action='store_false',
+                    help='do not use variational dropout')
+parser.set_defaults(var_dropout=True)
 parser.add_argument('--plus_minus_feats', dest='plus_minus_feats', action='store_true',
                     help='use +/- for feature encoding')
+parser.add_argument('--no-plus_minus_feats', dest='plus_minus_feats', action='store_false',
+                    help='do not use +/- for feature encoding')
+parser.set_defaults(plus_minus_feats=False)
 parser.add_argument('--compressed_sensing', dest='compressed_sensing', action='store_true',
                     help='use compressed sensing')
+parser.add_argument('--no-compressed_sensing', dest='compressed_sensing', action='store_false',
+                    help='do not use use compressed sensing')
+parser.set_defaults(compressed_sensing=False)
 parser.add_argument('--log_stats', dest='log_stats', action='store_true',
                     help='print learning rate and gradient norms once an epoch')
+parser.add_argument('--no-log_stats', dest='log_stats', action='store_false',
+                    help='do not print learning rate and gradient norms once an epoch')
+parser.set_defaults(log_stats=False)
 parser.add_argument('--fraction', type=float, default=1.0,
                     help='Fraction of data to use. Useful for hyperparameter tuning')
 parser.add_argument('--name', type=str, default=START_TIME,
@@ -96,10 +106,10 @@ data_provider = ASSISTDataProvider(
     use_plus_minus_feats=args.plus_minus_feats,
     use_compressed_sensing=args.compressed_sensing,
     fraction=args.fraction)
-train_set, val_set = data_provider.train_validation_split(threshold=args.threshold)
+train_set, val_set = data_provider.train_validation_split()
 
 
-repeats = args.epochs/9
+repeats = args.epochs/9 
 total_train_num = train_set.max_num_ans*train_set.num_batches
 total_valid_num = val_set.max_num_ans*val_set.num_batches
 '''
@@ -130,7 +140,7 @@ with tf.Graph().as_default():
     with tf.Session(config=session_conf) as sess:
 
         initializer = tf.random_uniform_initializer(-0.05, 0.05)
-        print("var_dropout: ", args.var_dropout)
+
         with tf.variable_scope("model", reuse=None, initializer=initializer):
             TrainModel = LstmModel(max_time_steps=train_set.max_num_ans,
                               feature_len=train_set.encoding_dim,
@@ -177,6 +187,7 @@ with tf.Graph().as_default():
             print("Model restored!")
 
 
+
         print("Starting training...")
         for epoch in range(args.epochs):
             # Train one epoch!
@@ -193,7 +204,7 @@ with tf.Graph().as_default():
 
             print('Learning Rate : ', learning_rate)
             for i, (inputs, targets, target_ids) in enumerate(train_set):
-                
+
                 _, loss, acc_update, auc_update, summary_loss,logit_list = sess.run(
                     [TrainModel.training, TrainModel.loss, TrainModel.accuracy[1], TrainModel.auc[1],
                      train_merged_loss,TrainModel.logit_list],
@@ -202,6 +213,7 @@ with tf.Graph().as_default():
                                TrainModel.target_ids: target_ids,
                                TrainModel.learning_rate: learning_rate,
                                TrainModel.keep_prob: float(args.keep_prob)})
+
 
 
                 if args.log_stats and i == 0:
@@ -306,3 +318,4 @@ with tf.Graph().as_default():
         plt.ylabel('Accuracy')
         plt.title('Accuracy per epoch')
         plt.savefig(SAVE_DIR + '/accuracy.png')
+
