@@ -33,8 +33,8 @@ tf.flags.DEFINE_integer("batch_size", 32, "Batch size for training.")
 tf.flags.DEFINE_integer("epochs", 50, "Number of epochs to train for.")
 tf.flags.DEFINE_boolean("allow_soft_placement", True, "Allow device soft device placement")
 tf.flags.DEFINE_boolean("log_device_placement", False, "Log placement of ops on devices")
-tf.flags.DEFINE_string("train_data_path", 'data/0910_b_train.csv', "Path to the training dataset")
-tf.flags.DEFINE_string("test_data_path", 'data/0910_b_test.csv', "Path to the testing dataset")
+tf.flags.DEFINE_string("train_data_path", 'data/0910_c_train.csv', "Path to the training dataset")
+tf.flags.DEFINE_string("test_data_path", 'data/0910_c_test.csv', "Path to the testing dataset")
 
 FLAGS = tf.flags.FLAGS
 print("\nParameters:")
@@ -92,16 +92,8 @@ class StudentModel(object):
 
         # [batch_size, num_steps, input_size]
         inputs = tf.reshape(inputs, [-1, num_steps, input_size])
-<<<<<<< HEAD
-<<<<<<< HEAD
-        x = tf.transpose(inputs, [0, 1,2])
-=======
-=======
-        print(inputs.shape)
->>>>>>> 3992ddb05e5489d87bab27175b6aa0039b3a0d34
         x = inputs#tf.transpose(inputs, [0, 2])
 
->>>>>>> ddff0a7ee8681cbdd836de3995bcda3a198ef659
 
         # Reshape to (n_steps*batch_size, n_input)
         #x = tf.reshape(x, [-1, input_size])
@@ -332,13 +324,8 @@ def main(unused_args):
                     save_file = "{}/{}.ckpt".format(model_name, global_step)
                     save_path = saver.save(session, save_file)
 
-<<<<<<< HEAD
-                if((i+1) % FLAGS.evaluation_interval == 0):
-                    print("Save variables to disk")
-=======
                 if((i+1) % FLAGS.evaluation_interval == 0) or i==0:
-                    print "Save variables to disk"
->>>>>>> ddff0a7ee8681cbdd836de3995bcda3a198ef659
+                    print("Save variables to disk")
                     save_file = "{}/{}.ckpt".format(model_name, global_step)
                     save_path = saver.save(session, save_file)
                     print("*"*10)
