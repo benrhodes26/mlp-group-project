@@ -150,7 +150,7 @@ class ASSISTDataProvider(DataProvider):
             max_num_batches=-1,
             shuffle_order=True,
             rng=None,
-            data_dict=None):
+            data=None):
         """Create a new ASSISTments data provider object.
 
         Args:
@@ -162,8 +162,6 @@ class ASSISTDataProvider(DataProvider):
                 of the final dimension of inputs. This new encoding
                 uses a +/-1 hot vector of size max_prob_set_id + 1, instead
                 of a 1 hot vector of size 2*max_prob_set_id + 1.
-            use_compressed_sensing: transform the input data such that the
-            final dimension of inputs is much smaller.
             batch_size (int): Number of data points to include in each batch.
             max_num_batches (int): Maximum number of batches to iterate over
                 in an epoch. If `max_num_batches * batch_size > num_data` then
@@ -172,7 +170,7 @@ class ASSISTDataProvider(DataProvider):
             shuffle_order (bool): Whether to randomly permute the order of
                 the data before each epoch.
             rng (RandomState): A seeded random number generator.
-            data_dict: (inputs, target): if not None, use this data instead of
+            data: (inputs, target): if not None, use this data instead of
                 loading from file
         """
         expanded_data_dir = os.path.expanduser(data_dir)
@@ -181,43 +179,73 @@ class ASSISTDataProvider(DataProvider):
         self._validate_inputs(which_set, which_year, data_path)
         self.which_set = which_set
         self.which_year = which_year
-        self.data_dir = data_dir
+        self.data_dir = expanded_data_dir
         self.num_classes = 2
         self.fraction = fraction
         self.use_plus_minus_feats = use_plus_minus_feats
         self.use_compressed_sensing = use_compressed_sensing
 
-        if data_dict:
-            inputs, targets, self.target_ids = data_dict['inputs'], data_dict['targets'], data_dict['target_ids']
-            self.max_num_ans, self.max_prob_set_id = data_dict['max_num_ans'], data_dict['max_prob_set_id']
-            self.encoding_dim = data_dict['encoding_dim']
+        if data:
+            inputs, targets, self.target_ids = data['inputs'], \
+                data['targets'], data['target_ids']
+            self.max_num_ans, self.max_prob_set_id = data['max_num_ans'],\
+                data['max_prob_set_id']
+            self.encoding_dim = data['encoding_dim']
         else:
-            inputs, target_ids, targets = \
-                self.load_data(data_path, use_plus_minus_feats)
-            inputs, targets = self.reduce_data(inputs, target_ids, targets, fraction)
+            inputs, targets = self.load_data(data_path, use_plus_minus_feats)
+            inputs, targets = self.reduce_data(inputs, targets, fraction)
             if use_compressed_sensing:
-                inputs = self.compress(inputs, rng)
+                inputs = self.apply_compressed_sensing(inputs, rng)
         # pass the loaded data to the parent class __init__
         super(ASSISTDataProvider, self).__init__(
             inputs, targets, batch_size, max_num_batches, shuffle_order, rng)
 
-    def compress(self, inputs, rng):
-        num_students = inputs.shape[0]
-        compress_dim = 100  # value used in orginal DKT paper
+    def apply_compressed_sensing(self, inputs, rng):
+        """Map input features (of length 'encoding_dim') down to a randomly generated
+        vector sampled from a standard gaussian in a lower dimensional space. If this
+        is test time, load training matrix from file. If train time, make the matrix.
+        """
+        print('using compressed sensing!')
+        train_path = os.path.join(
+            self.data_dir, 'assist{0}-{1}'.format(self.which_year, 'train'))
+
+        if self.which_set == 'test':
+            loaded = np.load(train_path + '-compression-matrix.npz')
+            self.compress_matrix = loaded['compress_matrix']
+            self.compress_dim = self.compress_matrix.shape[1]
+        elif self.which_set == 'train':
+            self.compress_matrix = self.make_compression_matrix(train_path, rng)
+
+        inputs = self.compress_inputs(inputs)
+        return inputs
+
+    def make_compression_matrix(self, train_path, rng):
+        """Create matrix for mapping input features (of length 'encoding_dim') to
+        lower dimensional gaussian vector
+        """
+        self.compress_dim = 100  # value used in original DKT paper
         if rng:
-            compress_matrix = rng.randn(self.encoding_dim, compress_dim)
+            compress_matrix = rng.randn(self.encoding_dim, self.compress_dim)
         else:
-            compress_matrix = np.random.randn(self.encoding_dim, compress_dim)
+            compress_matrix = np.random.randn(self.encoding_dim, self.compress_dim)
+
+        np.savez(train_path + '-compression-matrix', compress_matrix=compress_matrix)
+        return compress_matrix
+
+    def compress_inputs(self, inputs):
+        """Apply compression matrix to inputs"""
+        num_students = inputs.shape[0]
         inputs = inputs.toarray()
-        inputs = np.dot(inputs.reshape(-1, self.encoding_dim), compress_matrix)
-        self.encoding_dim = compress_dim
+        inputs = np.dot(inputs.reshape(-1, self.encoding_dim), self.compress_matrix)
+        self.encoding_dim = self.compress_dim
+
         return sp.csr_matrix(inputs.reshape(num_students, -1))
 
-    def reduce_data(self, inputs, target_ids, targets, fraction):
+    def reduce_data(self, inputs, targets, fraction):
         num_data = int(inputs.shape[0] * fraction)
-        targets = targets[:num_data]
         inputs = inputs[:num_data]
-        self.target_ids = target_ids[:num_data]
+        targets = targets[:num_data]
+        self.target_ids = self.target_ids[:num_data]
         return inputs, targets
 
     def load_data(self, data_path, use_plus_minus_feats):
@@ -227,14 +255,15 @@ class ASSISTDataProvider(DataProvider):
         self.max_prob_set_id = int(loaded['max_prob_set_id'])
         targets = loaded['targets']
         if use_plus_minus_feats:
+            print("using plus minus feats!!!")
             inputs = sp.load_npz(data_path + '-inputs-plus-minus.npz')
             self.encoding_dim = self.max_prob_set_id + 1
         else:
             inputs = sp.load_npz(data_path + '-inputs.npz')
             self.encoding_dim = 2 * self.max_prob_set_id + 1
-        target_ids = sp.load_npz(data_path + '-targetids.npz')
+        self.target_ids = sp.load_npz(data_path + '-targetids.npz')
 
-        return inputs, target_ids, targets
+        return inputs, targets
 
     def next(self):
         """Returns next data batch or raises `StopIteration` if at end."""
@@ -267,9 +296,8 @@ class ASSISTDataProvider(DataProvider):
         # targets_batch is a list of lists, which we need to flatten
         batch_targets = [i for sublist in targets_batch for i in sublist]
         batch_targets = np.array(batch_targets, dtype=np.float32)
-        # during learning, the data for each student in a batch gets shuffled together.
-        # hence, we need a vector of indices to locate their predictions after
-        # learning
+        # during learning, the data for each student in a batch gets shuffled together
+        # hence, we need a vector of indices to locate their predictions after learning
         batch_target_ids = target_ids_batch.toarray()
         batch_target_ids = np.array(
             batch_target_ids.reshape(-1),
@@ -294,7 +322,7 @@ class ASSISTDataProvider(DataProvider):
         self.targets = self.targets[perm]
         self.target_ids = self.target_ids[perm]
 
-    def get_k_folds(self, k):
+    def _get_k_folds(self, k, threshold=None):
         """ Returns k pairs of DataProviders: (train_data_provider, val_data_provider)
         where the data split in each tuple is determined by k-fold cross val."""
 
@@ -313,18 +341,32 @@ class ASSISTDataProvider(DataProvider):
             targets_train, targets_val = targets[train_index], targets[val_index]
             target_ids_train, targets_ids_val = target_ids[train_index], target_ids[val_index]
 
+            if threshold:
+                # break up a student's sequence (into threshold-sized chunks)
+                # *after* the train/val split since if we did it beforehand then the same
+                # students' data might be split across the two sets, which would make the
+                # validation set a bad proxy for the test set.
+                inputs_train, target_ids_train, targets_train, threshold = \
+                    self.truncate_sequences(inputs_train, target_ids_train,
+                                            targets_train, threshold)
+                inputs_val, targets_ids_val, targets_val, threshold = \
+                    self.truncate_sequences(inputs_val, targets_ids_val,
+                                            targets_val, threshold)
+            else:
+                threshold = self.max_num_ans
+                
             train_data = {
                 'inputs': inputs_train,
                 'targets': targets_train,
                 'target_ids': target_ids_train,
-                'max_num_ans': self.max_num_ans,
+                'max_num_ans': threshold,
                 'max_prob_set_id': self.max_prob_set_id,
                 'encoding_dim': self.encoding_dim}
             val_data = {
                 'inputs': inputs_val,
                 'targets': targets_val,
                 'target_ids': targets_ids_val,
-                'max_num_ans': self.max_num_ans,
+                'max_num_ans': threshold,
                 'max_prob_set_id': self.max_prob_set_id,
                 'encoding_dim': self.encoding_dim}
 
@@ -339,7 +381,7 @@ class ASSISTDataProvider(DataProvider):
                 max_num_batches=self.max_num_batches,
                 shuffle_order=self.shuffle_order,
                 rng=self.rng,
-                data_dict=train_data)
+                data=train_data)
             val_dp = ASSISTDataProvider(
                 data_dir=self.data_dir,
                 which_set=self.which_set,
@@ -351,8 +393,79 @@ class ASSISTDataProvider(DataProvider):
                 max_num_batches=self.max_num_batches,
                 shuffle_order=self.shuffle_order,
                 rng=self.rng,
-                data_dict=val_data)
+                data=val_data)
             yield (train_dp, val_dp)
+
+    def train_validation_split(self, threshold=None):
+        """Return 2 data providers with 80/20 data split
+
+        Note, we break up a student's sequence (into threshold-sized chunks)
+        *after* the train/val split since if we did it beforehand then the same
+        students' data might be split across the two sets, which would make the
+        validation set a bad proxy for the test set"""
+        for train, validation in self._get_k_folds(5, threshold):
+            train_provider = train
+            validation_provider = validation
+            break
+        return train_provider, validation_provider
+
+    def truncate_sequences(self, inputs, target_ids, targets, threshold):
+        """Split the data of each student into threshold*encoding_dim chunks.
+
+        Rather than use the default max_num_ans*encoding_dim vector that contains all the
+        (padded) data for that student, we break up a student's data into chunks. Each new chunk is
+        effectively treated as a new student. Note that since we have already right-padded
+        student's data with zeros, some of these new chunks will be all zero, and can thus
+        be discarded."""
+        threshold = min(self.max_num_ans, threshold)
+        inputs = self._truncate_inputs_or_ids(inputs,
+                                              self.encoding_dim,
+                                              threshold)
+        target_ids = self._truncate_inputs_or_ids(target_ids,
+                                                  self.max_prob_set_id,
+                                                  threshold)
+        targets = self._truncate_targets(targets, threshold)
+        print('Number of effective students is now {}.'.format(inputs.shape[0]))
+
+        return inputs, target_ids, targets, threshold
+
+    def _truncate_targets(self, targets, threshold):
+        new_targets = []
+        for student in targets:
+            for i in range(0, len(student), threshold):
+                new_targets.append(student[i:i + threshold])
+        return np.array(new_targets)
+
+    def _truncate_inputs_or_ids(self, input_or_id, final_dim, threshold):
+
+        # don't truncate all the input_or_ids in one-go due to memory overload.
+        # do it in steps of 1000 students and concatenate afterwards
+        list_of_truncated_seqs = []
+        for i in range(0, input_or_id.shape[0], 1000):
+            x = input_or_id[i:i+1000].toarray()
+            x = x.reshape(x.shape[0],
+                          self.max_num_ans,
+                          final_dim)
+
+            # We want to break the data into threshold-sized chunks,
+            # so right-pad with zeros to ensure divisibility
+            pad_size = threshold - self.max_num_ans % threshold
+            pad = ((0, 0), (0, pad_size), (0, 0))
+            x = np.pad(x, pad_width=pad, mode='constant', constant_values=0)
+
+            # break up data into threshold-sized chunks
+            new_x = x.reshape(-1, threshold, final_dim)
+
+            # Only keep those chunks that are non-zero
+            non_empty_mask = np.max((new_x != np.zeros((threshold, final_dim))),
+                                    axis=(1, 2))
+            num_effective_students = np.sum(non_empty_mask)
+            non_empty_indices = np.nonzero(non_empty_mask)
+            new_x = new_x[non_empty_indices]
+            list_of_truncated_seqs.append(
+                sp.csr_matrix(new_x.reshape(num_effective_students, -1)))
+
+        return sp.vstack(list_of_truncated_seqs)
 
     def _validate_inputs(self, which_set, which_year, data_path):
         assert which_set in ['train', 'test'], (
