@@ -29,8 +29,8 @@ tf.flags.DEFINE_float("keep_prob", 0.6, "Keep probability for dropout")
 tf.flags.DEFINE_integer("hidden_layer_num", 1, "The number of hidden layers (Integer)")
 tf.flags.DEFINE_integer("hidden_size", 200, "The number of hidden nodes (Integer)")
 tf.flags.DEFINE_integer("evaluation_interval", 5, "Evaluate and print results every x epochs")
-tf.flags.DEFINE_integer("batch_size", 100, "Batch size for training.")
-tf.flags.DEFINE_integer("epochs", 150, "Number of epochs to train for.")
+tf.flags.DEFINE_integer("batch_size", 32, "Batch size for training.")
+tf.flags.DEFINE_integer("epochs", 50, "Number of epochs to train for.")
 tf.flags.DEFINE_boolean("allow_soft_placement", True, "Allow device soft device placement")
 tf.flags.DEFINE_boolean("log_device_placement", False, "Log placement of ops on devices")
 tf.flags.DEFINE_string("train_data_path", 'data/0910_c_train.csv', "Path to the training dataset")
@@ -92,7 +92,6 @@ class StudentModel(object):
 
         # [batch_size, num_steps, input_size]
         inputs = tf.reshape(inputs, [-1, num_steps, input_size])
-        print(inputs.shape)
         x = inputs#tf.transpose(inputs, [0, 2])
 
 
@@ -326,7 +325,7 @@ def main(unused_args):
                     save_path = saver.save(session, save_file)
 
                 if((i+1) % FLAGS.evaluation_interval == 0) or i==0:
-                    print "Save variables to disk"
+                    print("Save variables to disk")
                     save_file = "{}/{}.ckpt".format(model_name, global_step)
                     save_path = saver.save(session, save_file)
                     print("*"*10)
