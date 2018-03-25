@@ -8,29 +8,44 @@ import csv
 import numpy as np
 import os
 import scipy.sparse as sp
-import sys
 
-data_dir = sys.argv[1]
-input_filename = sys.argv[2]
-output_filename = sys.argv[3]
-use_plus_minus_feats = sys.argv[4]
+from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 
-if use_plus_minus_feats == 'False':
-    use_plus_minus_feats = False
-elif use_plus_minus_feats == 'True':
-    use_plus_minus_feats = True
-else:
-    raise (
-        'use_plus_minus should be True or False'
-    )
+parser = ArgumentParser(description='Preprocess Assist data.',
+                        formatter_class=ArgumentDefaultsHelpFormatter)
+parser.add_argument('--data_dir', type=str,
+                    default='~/Dropbox/mlp-group-project/',
+                    help='Path to directory containing csv data')
+parser.add_argument('--csv_filename', type=str,
+                    default='0910_c_train.csv',
+                    help='Filename of csv data')
+parser.add_argument('--which_year', type=str,
+                    default='09',
+                    help='09 or 15')
+parser.add_argument('--which_set', type=str,
+                    default='train',
+                    help='either train or test data set')
+parser.add_argument('--use_plus_minus', type=bool,
+                    default=False,
+                    help='use different feature encoding. Default is one-hot')
+parser.add_argument('--train_max_num_ans', type=int,
+                    default=None,
+                    help='If which_set = test, then we need to pass in the training '
+                         'maximum number of questions any student answered')
+args = parser.parse_args()
 
-input_data_path = os.path.join(data_dir, input_filename)
+data_dir = args.data_dir
+csv_filename = args.csv_filename
+output_filename = 'assist' + args.which_year + '-' + args.which_set
+csv_data_path = os.path.join(data_dir, csv_filename)
 output_data_path = os.path.join(data_dir, output_filename)
+use_plus_minus_feats = args.use_plus_minus
 
 num_lines_per_student = 3
 num_students = 0
 max_num_ans = 0  # largest number of questions answered by any student
 max_prob_set_id = 0  # largest id of any problem set
+total_num_problems = 0
 student_to_prob_sets = {}
 student_to_marks = {}
 prob_set_counts = {}
@@ -40,7 +55,7 @@ prob_set_counts = {}
 # line 2: sequence of problem_set_ids of the problems attempted
 # line 3: corresponding sequence of marks (1=correct, 0=incorrect)
 
-with open(input_data_path, "r") as f:
+with open(csv_data_path, "r") as f:
     reader = csv.reader(f, delimiter=",")
     skip = False  # we will skip any student who has answered fewer than 3 problems
     for i, row in enumerate(reader):
@@ -53,12 +68,13 @@ with open(input_data_path, "r") as f:
             else:
                 skip = False
                 num_students += 1
+                total_num_problems += row[0]
                 max_num_ans = max(max_num_ans, row[0])
 
         if i % num_lines_per_student == 1 and not skip:
             # row contains list of problem set ids, one for each problem student answered
             for prob_set in row:
-                prob_set_counts[str(prob_set+1)] = prob_set_counts.get(str(prob_set+1   ), 0) + 1
+                prob_set_counts[str(prob_set + 1)] = prob_set_counts.get(str(prob_set + 1), 0) + 1
             # store the problem ids for this student, adding 1 so the ids start from 1, not 0
             student_to_prob_sets[str(num_students)] = [i+1 for i in row]
 
@@ -68,6 +84,10 @@ with open(input_data_path, "r") as f:
             student_to_marks[str(num_students)] = row
 
 max_prob_set_id = max(map(int, prob_set_counts.keys()))
+
+if args.which_set == 'test':
+    max_num_ans = args.train_max_num_ans
+
 if use_plus_minus_feats:
     encoding_dim = max_prob_set_id + 1
 else:
@@ -163,5 +183,7 @@ with open('{}/unique-prob-set-counts-{}.txt'.format(data_dir, output_filename), 
 print(
     'There are {} students. \n'
     'The max number of questions answered by any student is {}. \n'
-    'The max id of a problem set is {}.'.format(num_students, max_num_ans, max_prob_set_id)
+    'The max id of a problem set is {} \n'
+    'total number of problems answered: {}'.format(num_students, max_num_ans,
+                                                    max_prob_set_id, total_num_problems)
       )
