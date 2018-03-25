@@ -1,5 +1,5 @@
 # This script is a re-implementation of some of the pre-processing used
-# here: https://github.com/siyuanzhao/2016-EDM/. The raw csv data used here
+# at: https://github.com/siyuanzhao/2016-EDM/. The raw csv data used here
 # can be downloaded from that repo.
 # The output of this script is fed into the data_providers class, which
 # does some further processing to construct mini-batches for training an RNN
@@ -28,10 +28,6 @@ parser.add_argument('--which_set', type=str,
 parser.add_argument('--use_plus_minus', type=bool,
                     default=False,
                     help='use different feature encoding. Default is one-hot')
-parser.add_argument('--train_max_num_ans', type=int,
-                    default=None,
-                    help='If which_set = test, then we need to pass in the training '
-                         'maximum number of questions any student answered')
 args = parser.parse_args()
 
 data_dir = args.data_dir
@@ -44,7 +40,6 @@ use_plus_minus_feats = args.use_plus_minus
 num_lines_per_student = 3
 num_students = 0
 max_num_ans = 0  # largest number of questions answered by any student
-max_prob_set_id = 0  # largest id of any problem set
 total_num_problems = 0
 student_to_prob_sets = {}
 student_to_marks = {}
@@ -84,9 +79,6 @@ with open(csv_data_path, "r") as f:
             student_to_marks[str(num_students)] = row
 
 max_prob_set_id = max(map(int, prob_set_counts.keys()))
-
-if args.which_set == 'test':
-    max_num_ans = args.train_max_num_ans
 
 if use_plus_minus_feats:
     encoding_dim = max_prob_set_id + 1
@@ -156,7 +148,7 @@ else:
                                   shape=(num_students, max_num_ans * encoding_dim))
 
 sparse_target_ids = sp.csr_matrix((np.ones(len(target_ids_row_coords)), (target_ids_row_coords, target_ids_col_coords)),
-                              shape=(num_students, max_num_ans*max_prob_set_id))
+                                  shape=(num_students, max_num_ans*max_prob_set_id))
 if use_plus_minus_feats:
     inputs_data_path = output_data_path + '-inputs-plus-minus'
 else:
@@ -183,5 +175,5 @@ print(
     'The max number of questions answered by any student is {}. \n'
     'The max id of a problem set is {} \n'
     'total number of problems answered: {}'.format(num_students, max_num_ans,
-                                                    max_prob_set_id, total_num_problems)
+                                                   max_prob_set_id, total_num_problems)
       )
