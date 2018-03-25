@@ -295,10 +295,10 @@ class ASSISTDataProvider(DataProvider):
         if use_plus_minus_feats:
             print("using plus minus feats!!!")
             self._inputs = sp.load_npz(data_path + '-inputs-plus-minus.npz')
-            self.encoding_dim = self.max_prob_set_id + 1
+            self.encoding_dim = self.max_prob_set_id #+ 1
         else:
             self._inputs = sp.load_npz(data_path + '-inputs.npz')
-            self.encoding_dim = 2 * self.max_prob_set_id + 1
+            self.encoding_dim = 2 * self.max_prob_set_id #+ 1
         self.target_ids = sp.load_npz(data_path + '-targetids.npz')
 
     def next(self):
