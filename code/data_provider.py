@@ -321,7 +321,7 @@ class ASSISTDataProvider(DataProvider):
         self.targets = self.targets[perm]
         self.target_ids = self.target_ids[perm]
 
-    def _get_k_folds(self, k, threshold):
+    def _get_k_folds(self, k, threshold=None):
         """ Returns k pairs of DataProviders: (train_data_provider, val_data_provider)
         where the data split in each tuple is determined by k-fold cross val."""
 
@@ -340,16 +340,19 @@ class ASSISTDataProvider(DataProvider):
             targets_train, targets_val = targets[train_index], targets[val_index]
             target_ids_train, targets_ids_val = target_ids[train_index], target_ids[val_index]
 
-            # break up a student's sequence (into threshold-sized chunks)
-            # *after* the train/val split since if we did it beforehand then the same
-            # students' data might be split across the two sets, which would make the
-            # validation set a bad proxy for the test set.
-            inputs_train, target_ids_train, targets_train, threshold = \
-                self.threshold_num_ans(inputs_train, target_ids_train,
-                                       targets_train, threshold)
-            inputs_val, targets_ids_val, targets_val, threshold = \
-                self.threshold_num_ans(inputs_val, targets_ids_val,
-                                       targets_val, threshold)
+            if threshold:
+                # break up a student's sequence (into threshold-sized chunks)
+                # *after* the train/val split since if we did it beforehand then the same
+                # students' data might be split across the two sets, which would make the
+                # validation set a bad proxy for the test set.
+                inputs_train, target_ids_train, targets_train, threshold = \
+                    self.truncate_sequences(inputs_train, target_ids_train,
+                                            targets_train, threshold)
+                inputs_val, targets_ids_val, targets_val, threshold = \
+                    self.truncate_sequences(inputs_val, targets_ids_val,
+                                            targets_val, threshold)
+            else:
+                threshold = self.max_num_ans
 
             train_data = {
                 'inputs': inputs_train,
@@ -392,7 +395,7 @@ class ASSISTDataProvider(DataProvider):
                 data=val_data)
             yield (train_dp, val_dp)
 
-    def train_validation_split(self, threshold):
+    def train_validation_split(self, threshold=None):
         """Return 2 data providers with 80/20 data split
 
         Note, we break up a student's sequence (into threshold-sized chunks)
@@ -405,7 +408,7 @@ class ASSISTDataProvider(DataProvider):
             break
         return train_provider, validation_provider
 
-    def threshold_num_ans(self, inputs, target_ids, targets, threshold):
+    def truncate_sequences(self, inputs, target_ids, targets, threshold):
         """Split the data of each student into threshold*encoding_dim chunks.
 
         Rather than use the default max_num_ans*encoding_dim vector that contains all the
@@ -414,53 +417,54 @@ class ASSISTDataProvider(DataProvider):
         student's data with zeros, some of these new chunks will be all zero, and can thus
         be discarded."""
         threshold = min(self.max_num_ans, threshold)
-        num_students = inputs.shape[0]
-
-        inputs = self._threshold_inputs_or_ids(inputs,
-                                               self.encoding_dim,
-                                               num_students,
-                                               threshold)
-        target_ids = self._threshold_inputs_or_ids(target_ids,
-                                                   self.max_prob_set_id,
-                                                   num_students,
-                                                   threshold)
-        targets = self._threshold_targets(targets, threshold)
+        inputs = self._truncate_inputs_or_ids(inputs,
+                                              self.encoding_dim,
+                                              threshold)
+        target_ids = self._truncate_inputs_or_ids(target_ids,
+                                                  self.max_prob_set_id,
+                                                  threshold)
+        targets = self._truncate_targets(targets, threshold)
         print('Number of effective students is now {}.'.format(inputs.shape[0]))
 
         return inputs, target_ids, targets, threshold
 
-    def _threshold_targets(self, targets, threshold):
+    def _truncate_targets(self, targets, threshold):
         new_targets = []
         for student in targets:
             for i in range(0, len(student), threshold):
                 new_targets.append(student[i:i + threshold])
         return np.array(new_targets)
 
-    def _threshold_inputs_or_ids(self, input_or_id, final_dim,
-                                 num_students, threshold):
-        x = input_or_id.toarray()
-        x = x.reshape(num_students,
-                      self.max_num_ans,
-                      final_dim)
+    def _truncate_inputs_or_ids(self, input_or_id, final_dim, threshold):
 
-        # We want to break the data into threshold-sized chunks,
-        # so right-pad with zeros to ensure divisibility
-        pad_size = threshold - self.max_num_ans % threshold
-        pad = ((0, 0), (0, pad_size), (0, 0))
-        x = np.pad(x, pad_width=pad, mode='constant', constant_values=0)
+        # don't truncate all the input_or_ids in one-go due to memory overload.
+        # do it in steps of 1000 students and concatenate afterwards
+        list_of_truncated_seqs = []
+        for i in range(0, input_or_id.shape[0], 1000):
+            x = input_or_id[i:i+1000].toarray()
+            x = x.reshape(x.shape[0],
+                          self.max_num_ans,
+                          final_dim)
 
-        # break up data into threshold-sized chunks
-        new_x = x.reshape(-1, threshold, final_dim)
+            # We want to break the data into threshold-sized chunks,
+            # so right-pad with zeros to ensure divisibility
+            pad_size = threshold - self.max_num_ans % threshold
+            pad = ((0, 0), (0, pad_size), (0, 0))
+            x = np.pad(x, pad_width=pad, mode='constant', constant_values=0)
 
-        # Only keep those chunks that are non-zero
-        non_empty_mask = np.max((new_x != np.zeros((threshold, final_dim))),
-                                axis=(1, 2))
-        num_effective_students = np.sum(non_empty_mask)
-        non_empty_indices = np.nonzero(non_empty_mask)
-        new_x = new_x[non_empty_indices]
-        new_x = sp.csr_matrix(new_x.reshape(num_effective_students, -1))
+            # break up data into threshold-sized chunks
+            new_x = x.reshape(-1, threshold, final_dim)
 
-        return new_x
+            # Only keep those chunks that are non-zero
+            non_empty_mask = np.max((new_x != np.zeros((threshold, final_dim))),
+                                    axis=(1, 2))
+            num_effective_students = np.sum(non_empty_mask)
+            non_empty_indices = np.nonzero(non_empty_mask)
+            new_x = new_x[non_empty_indices]
+            list_of_truncated_seqs.append(
+                sp.csr_matrix(new_x.reshape(num_effective_students, -1)))
+
+        return sp.vstack(list_of_truncated_seqs)
 
     def _validate_inputs(self, which_set, which_year, data_path):
         assert which_set in ['train', 'test'], (

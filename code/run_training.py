@@ -1,20 +1,16 @@
 from data_provider import ASSISTDataProvider
 from LstmModel import LstmModel
-from utils import get_events_filepath, events_to_numpy, get_learning_rate
+from utils import get_learning_rate, log_learning_rate_and_grad_norms, plot_learning_curves
 
 from argparse import ArgumentParser, ArgumentDefaultsHelpFormatter
 from time import gmtime, strftime
 
 import os
-import numpy as np
 import tensorflow as tf
-import matplotlib
-
-matplotlib.use('agg')
-import matplotlib.pyplot as plt
 
 START_TIME = strftime('%Y%m%d-%H%M', gmtime())
 
+# Arguments for reading and writing data
 parser = ArgumentParser(description='Train LstmModel.',
                         formatter_class=ArgumentDefaultsHelpFormatter)
 parser.add_argument('--data_dir', type=str,
@@ -26,7 +22,35 @@ parser.add_argument('--which_year', type=str, default='09',
                     help='Year of ASSIST data. Either 09 or 15')
 parser.add_argument('--restore', default=None,
                     help='Path to .ckpt file of model to continue training')
+parser.add_argument('--name', type=str, default=START_TIME,
+                    help='Name of experiment when saving model')
+parser.add_argument('--model_dir', type=str, default='.',
+                    help='Path to directory where model will be saved')
 
+# Arguments for debugging
+parser.add_argument('--log_stats', dest='log_stats', action='store_true',
+                    help='print learning rate and gradient norms once every 10 epochs')
+parser.add_argument('--no-log_stats', dest='log_stats', action='store_false',
+                    help='do not print learning rate and gradient norms once every 10 epochs')
+parser.set_defaults(log_stats=False)
+parser.add_argument('--fraction', type=float, default=1.0,
+                    help='Fraction of data to use. Useful for hyperparameter tuning')
+
+# Arguments controlling feature representation
+parser.add_argument('--plus_minus_feats', dest='plus_minus_feats', action='store_true',
+                    help='use +/- for feature encoding')
+parser.add_argument('--no-plus_minus_feats', dest='plus_minus_feats', action='store_false',
+                    help='do not use +/- for feature encoding')
+parser.set_defaults(plus_minus_feats=False)
+parser.add_argument('--compressed_sensing', dest='compressed_sensing', action='store_true',
+                    help='use compressed sensing')
+parser.add_argument('--no-compressed_sensing', dest='compressed_sensing', action='store_false',
+                    help='do not use use compressed sensing')
+parser.set_defaults(compressed_sensing=False)
+parser.add_argument('--max_time_steps', type=int, default=None,
+                    help='limit length of students sequences of answers')
+
+# Arguments to control model hyperparameters
 parser.add_argument('--optimisation', type=str, default='sgd',
                     help='optimisation method. Choices are: adam, rmsprop, '
                          'momentum and sgd.')
@@ -40,20 +64,10 @@ parser.add_argument('--lr_exp_decay', type=float, default=(1 / 3),
                     help='fraction to multiply learning rate by each step')
 parser.add_argument('--num_hidden_units', type=int, default=200,
                     help='Number of hidden units in the LSTM cell')
-parser.add_argument('--num_hidden_layers', type=int, default=1,
-                    help='Number of hidden layers in the LSTM cell')
 parser.add_argument('--batch', type=int, default=32,
                     help='Batch size')
-parser.add_argument('--max_time_steps', type=int, default=100,
-                    help='limit length of students sequences of answers')
 parser.add_argument('--epochs', type=int, default=100,
                     help='Number of training epochs')
-parser.add_argument('--decay', type=float, default=0.96,
-                    help='Fraction to decay learning rate every 100 batches')
-parser.add_argument('--decay_step', type=int, default=3000,
-                    help='Apply learning rate decay every x batches')
-# parser.add_argument('--add_gradient_noise', type=float, default=1e-3,
-#                    help='add gaussian noise with stdev=1e-3 to gradients')
 parser.add_argument('--clip_norm', type=float, default=1,
                     help='clip norms of gradients')
 parser.add_argument('--keep_prob', type=float, default=0.6,
@@ -63,27 +77,6 @@ parser.add_argument('--var_dropout', dest='var_dropout', action='store_true',
 parser.add_argument('--no-var_dropout', dest='var_dropout', action='store_false',
                     help='do not use variational dropout')
 parser.set_defaults(var_dropout=True)
-parser.add_argument('--plus_minus_feats', dest='plus_minus_feats', action='store_true',
-                    help='use +/- for feature encoding')
-parser.add_argument('--no-plus_minus_feats', dest='plus_minus_feats', action='store_false',
-                    help='do not use +/- for feature encoding')
-parser.set_defaults(plus_minus_feats=False)
-parser.add_argument('--compressed_sensing', dest='compressed_sensing', action='store_true',
-                    help='use compressed sensing')
-parser.add_argument('--no-compressed_sensing', dest='compressed_sensing', action='store_false',
-                    help='do not use use compressed sensing')
-parser.set_defaults(compressed_sensing=False)
-parser.add_argument('--log_stats', dest='log_stats', action='store_true',
-                    help='print learning rate and gradient norms once every 10 epochs')
-parser.add_argument('--no-log_stats', dest='log_stats', action='store_false',
-                    help='do not print learning rate and gradient norms once every 10 epochs')
-parser.set_defaults(log_stats=False)
-parser.add_argument('--fraction', type=float, default=1.0,
-                    help='Fraction of data to use. Useful for hyperparameter tuning')
-parser.add_argument('--name', type=str, default=START_TIME,
-                    help='Name of experiment when saving model')
-parser.add_argument('--model_dir', type=str, default='.',
-                    help='Path to directory where model will be saved')
 args = parser.parse_args()
 
 SAVE_DIR = os.path.join(args.model_dir, args.name)
@@ -99,28 +92,24 @@ data_provider = ASSISTDataProvider(
     fraction=args.fraction)
 train_set, val_set = data_provider.train_validation_split(args.max_time_steps)
 
-
-Model = LstmModel(max_time_steps=train_set.max_num_ans,
+model = LstmModel(max_time_steps=train_set.max_num_ans,
                   feature_len=train_set.encoding_dim,
                   n_distinct_questions=train_set.max_prob_set_id,
                   var_dropout=args.var_dropout,
                   batch_size=args.batch)
 
 print('Experiment started at', START_TIME)
-print("Building model...")
-Model.build_graph(n_hidden_units=args.num_hidden_units,
-                  n_hidden_layers=args.num_hidden_layers,
+
+model.build_graph(n_hidden_units=args.num_hidden_units,
                   clip_norm=args.clip_norm,
-                  # add_gradient_noise=args.add_gradient_noise,
                   optimisation=args.optimisation)
-print("Model built!")
 
 train_saver = tf.train.Saver()
 valid_saver = tf.train.Saver()
 
 with tf.Session() as sess:
-    merged_loss = tf.summary.merge(Model.summary_loss)
-    merged_aucacc = tf.summary.merge(Model.summary_aucacc)
+    merged_loss = tf.summary.merge(model.summary_loss)
+    merged_aucacc = tf.summary.merge(model.summary_aucacc)
     train_writer = tf.summary.FileWriter(SAVE_DIR + '/train', graph=sess.graph)
     valid_writer = tf.summary.FileWriter(SAVE_DIR + '/valid', graph=sess.graph)
     sess.run(tf.global_variables_initializer())
@@ -131,80 +120,55 @@ with tf.Session() as sess:
 
     print("Starting training...")
     for epoch in range(args.epochs):
-        # Train one epoch!
-        sess.run(Model.auc_init)
-        sess.run(Model.acc_init)
-        total_sum = 0
-        total_num = 0
-        learning_rate = get_learning_rate(epoch,
-                                          args.init_learn_rate,
-                                          args.min_learn_rate,
-                                          args.lr_exp_decay,
-                                          args.lr_decay_step)
-        for i, (inputs, targets, target_ids) in enumerate(train_set):
-            _, loss, acc_update, auc_update, summary_loss,logit_list = sess.run(
-                [Model.training, Model.loss, Model.accuracy[1], Model.auc[1],
-                 merged_loss,Model.logit_list],
-                feed_dict={Model.inputs: inputs,
-                           Model.targets: targets,
-                           Model.target_ids: target_ids,
-                           Model.learning_rate: learning_rate,
-                           Model.keep_prob: float(args.keep_prob)})
+        model.reuse = False
+        sess.run(model.auc_init)
+        sess.run(model.acc_init)
+        learning_rate = get_learning_rate(epoch, args.init_learn_rate, args.min_learn_rate,
+                                          args.lr_exp_decay, args.lr_decay_step)
 
+        for i, (inputs, targets, target_ids) in enumerate(train_set):
+            _, loss, acc_update, auc_update, summary_loss = sess.run(
+                [model.training, model.loss, model.accuracy[1], model.auc[1],
+                 merged_loss],
+                feed_dict={model.inputs: inputs,
+                           model.targets: targets,
+                           model.target_ids: target_ids,
+                           model.learning_rate: learning_rate,
+                           model.keep_prob: float(args.keep_prob)})
 
             if args.log_stats and epoch % 10 == 0 and i == 0:
-                # optional logging for debugging.
-                print("learning rate is: {}".format(learning_rate))
-                for gv in Model.grads_and_vars:
-                    _ = sess.run([tf.Print(gv, [tf.norm(gv[0]), gv[1].name],
-                                           message="Grad norm is: ")],
-                                 feed_dict={Model.inputs: inputs,
-                                            Model.targets: targets,
-                                            Model.target_ids: target_ids,
-                                            Model.learning_rate: learning_rate,
-                                            Model.keep_prob: float(args.keep_prob)})
+                log_learning_rate_and_grad_norms(sess, model, inputs, targets,
+                                                 target_ids, learning_rate, args.keep_prob)
 
         accuracy, auc, summary_aucacc = sess.run(
-            [Model.accuracy[0], Model.auc[0], merged_aucacc],
-            feed_dict={Model.inputs: inputs,
-                       Model.targets: targets,
-                       Model.target_ids: target_ids})
-        print(
-            "Epoch {},  Loss: {:.3f},  Accuracy: {:.3f},  AUC: {:.3f} (train)"
-                .format(epoch, loss, accuracy, auc))
+            [model.accuracy[0], model.auc[0], merged_aucacc])
 
+        print("Epoch {},  Loss: {:.3f},  Accuracy: {:.3f},  AUC: {:.3f} (train)"
+              .format(epoch, loss, accuracy, auc))
 
+        # save metrics and model each epoch
         train_writer.add_summary(summary_loss, epoch)
         train_writer.add_summary(summary_aucacc, epoch)
-
-        # save model each epoch
         save_file = "{}/{}_{}.ckpt".format(SAVE_DIR, args.name, epoch)
         train_saver.save(sess, save_file)
 
-        sess.run(Model.auc_init)
-        sess.run(Model.acc_init)
-
-        # Compute metrics on validation set (no training)
-        loss_total = 0
-        accuracy_total = 0
-        auc_total = 0
+        # Evaluate on validation set
+        model.reuse = True
+        sess.run(model.auc_init)
+        sess.run(model.acc_init)
 
         for i, (inputs, targets, target_ids) in enumerate(val_set):
             loss, acc_update, auc_update, summary_loss = sess.run(
-                [Model.loss, Model.accuracy[1], Model.auc[1], merged_loss],
+                [model.loss, model.accuracy[1], model.auc[1], merged_loss],
                 feed_dict={
-                    Model.inputs: inputs,
-                    Model.targets: targets,
-                    Model.target_ids: target_ids})
+                    model.inputs: inputs,
+                    model.targets: targets,
+                    model.target_ids: target_ids})
 
-            accuracy, auc, summary_aucacc = sess.run(
-                [Model.accuracy[0], Model.auc[0], merged_aucacc],
-                feed_dict={Model.inputs: inputs,
-                           Model.targets: targets,
-                           Model.target_ids: target_ids,
-                           Model.keep_prob: 1.0})
+        accuracy, auc, summary_aucacc = sess.run(
+            [model.accuracy[0], model.auc[0], merged_aucacc])
         print("Epoch {},  Loss: {:.3f},  Accuracy: {:.3f},  AUC: {:.3f} (valid)"
-                .format(epoch,loss, accuracy, auc))
+              .format(epoch, loss, accuracy, auc))
 
         valid_writer.add_summary(summary_loss, epoch)
         valid_writer.add_summary(summary_aucacc, epoch)
@@ -214,40 +178,4 @@ with tf.Session() as sess:
 
     print("Saved model at", save_file)  # training finished
 
-    # Get and save loss, accuracy, and auc metrics
-    events_file_train = get_events_filepath(SAVE_DIR, 'train')
-    metrics_train = events_to_numpy(events_file_train)
-    np.save(os.path.join(SAVE_DIR, 'metrics_train'), metrics_train)
-
-    events_file_valid = get_events_filepath(SAVE_DIR, 'valid')
-    metrics_valid = events_to_numpy(events_file_valid)
-    np.save(os.path.join(SAVE_DIR, 'metrics_valid'), metrics_valid)
-
-    # plot metrics
-    e = np.arange(args.epochs)
-    plt.figure()
-    train_plt, = plt.plot(e, metrics_train[:, 0])
-    valid_plt, = plt.plot(e, metrics_valid[:, 0])
-    plt.legend([train_plt, valid_plt], ['train', 'valid'])
-    plt.xlabel('Epoch')
-    plt.ylabel('loss')
-    plt.title('Loss per epoch')
-    plt.savefig(SAVE_DIR + '/loss.png')
-
-    plt.figure()
-    train_plt, = plt.plot(e, metrics_train[:, 1])
-    valid_plt, = plt.plot(e, metrics_valid[:, 1])
-    plt.legend([train_plt, valid_plt], ['train', 'valid'])
-    plt.xlabel('Epoch')
-    plt.ylabel('AUC')
-    plt.title('AUC per epoch')
-    plt.savefig(SAVE_DIR + '/auc.png')
-
-    plt.figure()
-    train_plt, = plt.plot(e, metrics_train[:, 2])
-    valid_plt, = plt.plot(e, metrics_valid[:, 2])
-    plt.legend([train_plt, valid_plt], ['train', 'valid'])
-    plt.xlabel('Epoch')
-    plt.ylabel('Accuracy')
-    plt.title('Accuracy per epoch')
-    plt.savefig(SAVE_DIR + '/accuracy.png')
+plot_learning_curves(SAVE_DIR, args.epochs)
