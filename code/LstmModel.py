@@ -44,23 +44,6 @@ class LstmModel:
             if False, we are evaluating on validation set, so reuse
             RNN parameters from training phase
         """
-        tf.reset_default_graph()
-
-        # data. 'None' means any length batch size accepted
-        self.inputs = tf.placeholder(
-            tf.float32,
-            shape=[None, self.max_time_steps, self.feature_len],
-            name='inputs')
-
-        # 'None' because may have answered any number of questions
-        self.targets = tf.placeholder(tf.float32,
-                                      shape=[None],
-                                      name='targets')
-
-        # int type required for tf.gather function
-        self.target_ids = tf.placeholder(tf.int32,
-                                         shape=[None],
-                                         name='target_ids')
 
         self.keep_prob = tf.placeholder_with_default(1.0, shape=(),
                                                      name='keep_prob')
@@ -85,7 +68,6 @@ class LstmModel:
             self.outputs, self.state = tf.nn.dynamic_rnn(cell=cell,
                                                          inputs=self.inputs,
                                                          dtype=tf.float32)
-
             sigmoid_w = tf.get_variable(dtype=tf.float32,
                                         name="sigmoid_w",
                                         shape=[n_hidden_units,
@@ -163,3 +145,4 @@ class LstmModel:
 
         acc_var = tf.get_collection(tf.GraphKeys.LOCAL_VARIABLES, scope="acc")
         self.acc_init = tf.variables_initializer(var_list=acc_var)
+       

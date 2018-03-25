@@ -196,7 +196,6 @@ class ASSISTDataProvider(DataProvider):
             inputs, targets = self.reduce_data(inputs, targets, fraction)
             if use_compressed_sensing:
                 inputs = self.apply_compressed_sensing(inputs, rng)
-
         # pass the loaded data to the parent class __init__
         super(ASSISTDataProvider, self).__init__(
             inputs, targets, batch_size, max_num_batches, shuffle_order, rng)
@@ -300,7 +299,9 @@ class ASSISTDataProvider(DataProvider):
         # during learning, the data for each student in a batch gets shuffled together
         # hence, we need a vector of indices to locate their predictions after learning
         batch_target_ids = target_ids_batch.toarray()
-        batch_target_ids = np.array(batch_target_ids.reshape(-1), dtype=np.int32)
+        batch_target_ids = np.array(
+            batch_target_ids.reshape(-1),
+            dtype=np.int32)
 
         return batch_inputs, batch_target_ids, batch_targets
 
@@ -353,7 +354,7 @@ class ASSISTDataProvider(DataProvider):
                                             targets_val, threshold)
             else:
                 threshold = self.max_num_ans
-
+                
             train_data = {
                 'inputs': inputs_train,
                 'targets': targets_train,
