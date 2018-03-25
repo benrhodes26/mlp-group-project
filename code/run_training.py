@@ -54,13 +54,13 @@ parser.add_argument('--max_time_steps', type=int, default=None,
 parser.add_argument('--optimisation', type=str, default='sgd',
                     help='optimisation method. Choices are: adam, rmsprop, '
                          'momentum and sgd.')
-parser.add_argument('--init_learn_rate', type=float, default=30,
+parser.add_argument('--init_learn_rate', type=float, default=10,
                     help='Initial learning rate.')
 parser.add_argument('--min_learn_rate', type=float, default=1,
                     help='minimum possible learning rate.')
-parser.add_argument('--lr_decay_step', type=float, default=12,
+parser.add_argument('--lr_decay_step', type=float, default=10,
                     help='Decrease learning rate every x epochs')
-parser.add_argument('--lr_exp_decay', type=float, default=(1 / 3),
+parser.add_argument('--lr_exp_decay', type=float, default=0.5,
                     help='fraction to multiply learning rate by each step')
 parser.add_argument('--num_hidden_units', type=int, default=200,
                     help='Number of hidden units in the LSTM cell')
